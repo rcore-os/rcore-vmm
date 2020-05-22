@@ -61,6 +61,36 @@ void init_device(int rvm_fd, int vmid) {
     io_port_init(&IO_PORT, rvm_fd, vmid);
 }
 
+int handle_io(struct rvm_exit_io_packet *packet, uint64_t key) {
+    if (packet->is_input)
+        printf("IN %d\n", packet->port);
+    else
+        printf("OUT %d < %x\n", packet->port, packet->u32);
+
+    io_handler_t handler = (io_handler_t)key;
+    struct rvm_io_value value = {};
+    value.access_size = packet->access_size;
+    value.u32 = packet->u32;
+    return handler(packet->port, &value, packet->is_input);
+}
+
+int handle_mmio(struct rvm_exit_mmio_packet *packet, uint64_t key) {
+    printf("Guest MMIO: addr(0x%lx) [Not supported!]\n", packet->addr);
+    return 1;
+}
+
+int handle_exit(struct rvm_exit_packet *packet) {
+    // printf("Handle guest exit: kind(%d) key(0x%lx)\n", packet->kind, packet->key);
+    switch (packet->kind) {
+    case RVM_EXIT_PKT_KIND_GUEST_IO:
+        return handle_io(&packet->io, packet->key);
+    case RVM_EXIT_PKT_KIND_GUEST_MMIO:
+        return handle_mmio(&packet->mmio, packet->key);
+    default:
+        return 1;
+    }
+}
+
 int main(int argc, char *argv[]) {
     int fd = open("/dev/rvm", O_RDWR);
     printf("rvm fd = %d\n", fd);
@@ -83,9 +113,10 @@ int main(int argc, char *argv[]) {
     printf("vcpu_id = %d\n", vcpu_id);
 
     for (;;) {
-        int ret = ioctl(fd, RVM_VCPU_RESUME, vcpu_id);
-        printf("RVM_VCPU_RESUME returns %d\n", ret);
-        break;
+        struct rvm_vcpu_resmue_args args = {vcpu_id};
+        int ret = ioctl(fd, RVM_VCPU_RESUME, &args);
+        if (ret < 0 || handle_exit(&args.packet))
+            break;
     }
 
     close(fd);
