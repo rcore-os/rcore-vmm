@@ -8,48 +8,31 @@
 
 #define SYSTEM_CTRL_PORT 0x92
 
-#define SERIAL_8250_BASE1 0x3f8
-#define SERIAL_8250_BASE2 0x2f8
-#define SERIAL_8250_BASE3 0x3e8
-#define SERIAL_8250_BASE4 0x2e8
-#define SERIAL_8250_SIZE 0x8
-
 #define QEMU_DEBUG_PORT 0x402
 
-static int cmos_io_handler(uint64_t port, struct rvm_io_value *value, bool is_input) {
-    printf("CMOS handler\n");
+struct cmos_data {
+};
+
+struct other_data {
+};
+
+static int cmos_read(struct virt_device *dev, uint64_t port, struct rvm_io_value *value) {
+    printf("CMOS read handler\n");
     return 0;
 }
 
-static void cmos_init(struct io_port_dev *dev) {
-    struct rvm_guest_set_trap_args trap = {
-        dev->vmid,
-        RVM_TRAP_KIND_IO,
-        CMOS_BASE,
-        CMOS_SIZE,
-        (uint64_t)cmos_io_handler,
-    };
-    ioctl(dev->rvm_fd, RVM_GUEST_SET_TRAP, &trap);
+static int cmos_write(struct virt_device *dev, uint64_t port, struct rvm_io_value *value) {
+    printf("CMOS write handler\n");
+    return 0;
 }
 
-static int serial_8250_io_handler(uint64_t port, struct rvm_io_value *value, bool is_input) {
-    printf("i8250 handler\n");
+static int other_read(struct virt_device *dev, uint64_t port, struct rvm_io_value *value) {
+    printf("other read handler\n");
     return 1;
 }
 
-static void serial_8250_init(struct io_port_dev *dev) {
-    struct rvm_guest_set_trap_args trap = {
-        dev->vmid,
-        RVM_TRAP_KIND_IO,
-        SERIAL_8250_BASE1,
-        SERIAL_8250_SIZE,
-        (uint64_t)serial_8250_io_handler,
-    };
-    ioctl(dev->rvm_fd, RVM_GUEST_SET_TRAP, &trap);
-}
-
-static bool other_io_handler(uint64_t port, struct rvm_io_value *value, bool is_input) {
-    printf("other handler\n");
+static int other_write(struct virt_device *dev, uint64_t port, struct rvm_io_value *value) {
+    printf("other write handler\n");
     switch (port) {
     case SYSTEM_CTRL_PORT: // Fast A20 gate
         return 0;
@@ -58,21 +41,47 @@ static bool other_io_handler(uint64_t port, struct rvm_io_value *value, bool is_
     }
 }
 
-static void other_init(struct io_port_dev *dev) {
+static struct cmos_data CMOS_DATA;
+static struct virt_device_ops CMOS_OPS = {
+    .read = cmos_read,
+    .write = cmos_write,
+};
+
+static void cmos_init(struct virt_device *dev) {
+    dev->ops = &CMOS_OPS;
+    dev->priv_data = &CMOS_DATA;
+    struct rvm_guest_set_trap_args trap = {
+        dev->vmid,
+        RVM_TRAP_KIND_IO,
+        CMOS_BASE,
+        CMOS_SIZE,
+        (uint64_t)dev,
+    };
+    ioctl(dev->rvm_fd, RVM_GUEST_SET_TRAP, &trap);
+}
+
+static struct other_data OTHER_DATA;
+static struct virt_device_ops OTHER_OPS = {
+    .read = other_read,
+    .write = other_write,
+};
+
+static void other_init(struct virt_device *dev) {
+    dev->ops = &OTHER_OPS;
+    dev->priv_data = &OTHER_DATA;
     struct rvm_guest_set_trap_args trap = {
         dev->vmid,
         RVM_TRAP_KIND_IO,
         SYSTEM_CTRL_PORT,
         1,
-        (uint64_t)other_io_handler,
+        (uint64_t)dev,
     };
     ioctl(dev->rvm_fd, RVM_GUEST_SET_TRAP, &trap);
 }
 
-void io_port_init(struct io_port_dev *dev, int rvm_fd, int vmid) {
+void io_port_init(struct virt_device *dev, int rvm_fd, int vmid) {
     dev->rvm_fd = rvm_fd;
     dev->vmid = vmid;
     cmos_init(dev);
-    serial_8250_init(dev);
     other_init(dev);
 }
