@@ -19,8 +19,9 @@
 #define MODEM_STATUS        0x6
 #define SCRATCH             0x7
 
-#define kI8250LineStatusEmpty (1u << 5)
-#define kI8250LineStatusIdle (1u << 6)
+#define kI8250LineStatusData 0x01
+#define kI8250LineStatusEmpty (1u << 5) // 0x20
+#define kI8250LineStatusIdle (1u << 6) // 0x40
 
 struct serial_data {
     uint8_t interrupt_enable;
@@ -28,7 +29,7 @@ struct serial_data {
 };
 
 static int serial_read(struct virt_device *dev, uint64_t port, struct rvm_io_value *value) {
-    printf("serial read handler\n");
+    // printf("serial read handler\n");
     value->u32 = 0;
     switch (port - SERIAL_BASE0) {
         case INTERRUPT_ENABLE:
@@ -58,7 +59,7 @@ static int serial_read(struct virt_device *dev, uint64_t port, struct rvm_io_val
 }
 
 static int serial_write(struct virt_device *dev, uint64_t port, struct rvm_io_value *value) {
-    printf("serial write handler 0x%x: %d\n", port, value->access_size);
+    // printf("serial write handler 0x%x: %d\n", port, value->access_size);
     switch (port - SERIAL_BASE0) {
         case TRANSMIT:
             for (int i = 0; i < value->access_size; i++) {

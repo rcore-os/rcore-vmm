@@ -10,6 +10,8 @@
 #include <dev/ide.h>
 #include <dev/io_port.h>
 #include <dev/serial.h>
+#include <dev/lpt.h>
+#include <dev/vga.h>
 #include <rvm.h>
 
 const uint32_t GUEST_RAM_SZ = 16 * 1024 * 1024; // 16 MiB
@@ -17,6 +19,8 @@ const uint32_t GUEST_RAM_SZ = 16 * 1024 * 1024; // 16 MiB
 struct virt_device IO_PORT;
 struct virt_device SERIAL;
 struct virt_device IDE;
+struct virt_device LPT;
+struct virt_device VGA;
 
 void test_hypercall() {
     for (int i = 0;; i++) {
@@ -79,17 +83,29 @@ int init_memory_ucore(int rvm_fd, int vmid, const char *ucore_img) {
     return ENTRY;
 }
 
-void init_device(int rvm_fd, int vmid) {
+void init_device(int rvm_fd, int vmid, const char* ide_img) {
     io_port_init(&IO_PORT, rvm_fd, vmid);
     serial_init(&SERIAL, rvm_fd, vmid);
-    ide_init(&IDE, rvm_fd, vmid);
+    ide_init(&IDE, rvm_fd, vmid, ide_img);
+    lpt_init(&LPT, rvm_fd, vmid);
+    vga_init(&VGA, rvm_fd, vmid);
 }
 
 int handle_io(int vcpu_id, struct rvm_exit_io_packet *packet, uint64_t key) {
-    if (packet->is_input)
-        printf("IN %x\n", packet->port);
-    else
-        printf("OUT %x < %x\n", packet->port, packet->u32);
+    if (0x1f0 <= packet->port && packet->port < 0x1f8) {
+        // IDE has too many info
+    } else if (0x3f8 <= packet->port && packet->port < 0x3ff) {
+        // serial
+    } else if (0x3D4 <= packet->port && packet->port < 0x3D4+8) {
+        // VGA
+    } else if (0x378 <= packet->port && packet->port < 0x378+8) {
+        // LPT
+    } else {
+        if (packet->is_input)
+            printf("IN %x\n", packet->port);
+        else
+            printf("OUT %x < %x\n", packet->port, packet->u32);
+    }
 
     struct virt_device *dev = (struct virt_device *)key;
     struct rvm_io_value value = {};
@@ -134,14 +150,14 @@ int main(int argc, char *argv[]) {
     int vmid = ioctl(fd, RVM_GUEST_CREATE);
     printf("vmid = %d\n", vmid);
 
-    const char *img = "ucore.img";
+    const char *img = "/app/ucore.img";
     if (argc > 1)
         img = argv[1];
     int entry = init_memory_ucore(fd, vmid, img);
     if (entry < 0)
         return 0;
 
-    init_device(fd, vmid);
+    init_device(fd, vmid, img);
 
     struct rvm_vcpu_create_args vcpu_args = {vmid, entry};
     int vcpu_id = ioctl(fd, RVM_VCPU_CREATE, &vcpu_args);
