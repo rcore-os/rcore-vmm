@@ -5,3 +5,4 @@ add_executable(vmm ${VMM_SRCS} ${VMM_DEV_SRCS})
 include_directories(.)
 
 file(COPY bios.bin DESTINATION ${EXECUTABLE_OUTPUT_PATH})
+file(COPY ucore.img DESTINATION ${EXECUTABLE_OUTPUT_PATH})

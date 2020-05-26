@@ -28,7 +28,7 @@ void test_hypercall() {
     }
 }
 
-int init_memory(int rvm_fd, int vmid, const char *bios_file) {
+int init_memory_bios(int rvm_fd, int vmid, const char *bios_file) {
     // RAM
     struct rvm_guest_add_memory_region_args region = {vmid, 0, GUEST_RAM_SZ};
     char *ram_ptr = (char *)(intptr_t)ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
@@ -54,7 +54,25 @@ int init_memory(int rvm_fd, int vmid, const char *bios_file) {
     int isa_bios_size = bios_size < (128 << 10) ? bios_size : (128 << 10);
     memcpy(ram_ptr + 0x100000 - isa_bios_size, bios_ptr + bios_size - isa_bios_size, isa_bios_size);
 
+    // use the HW default entry point CS:RIP = 0xf000:fff0
     return 0;
+}
+
+int init_memory_ucore(int rvm_fd, int vmid, const char *ucore_img) {
+    // RAM
+    struct rvm_guest_add_memory_region_args region = {vmid, 0, GUEST_RAM_SZ};
+    char *ram_ptr = (char *)(intptr_t)ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
+
+    int fd = open(ucore_img, O_RDONLY);
+    if (fd < 0)
+        return -1;
+
+    const int SECT_SIZE = 512;
+    const int ENTRY = 0x7c00;
+    read(fd, ram_ptr + ENTRY, SECT_SIZE);
+    close(fd);
+
+    return ENTRY;
 }
 
 void init_device(int rvm_fd, int vmid) {
@@ -98,16 +116,16 @@ int main(int argc, char *argv[]) {
     int vmid = ioctl(fd, RVM_GUEST_CREATE);
     printf("vmid = %d\n", vmid);
 
-    const char *bios_file = "bios.bin";
+    const char *img = "ucore.img";
     if (argc > 1)
-        bios_file = argv[1];
-    if (init_memory(fd, vmid, bios_file) < 0)
+        img = argv[1];
+    int entry = init_memory_ucore(fd, vmid, img);
+    if (entry < 0)
         return 0;
 
     init_device(fd, vmid);
 
-    // use the HW default entry point CS:RIP = 0xf000:fff0
-    struct rvm_vcpu_create_args vcpu_args = {vmid, 0};
+    struct rvm_vcpu_create_args vcpu_args = {vmid, entry};
     int vcpu_id = ioctl(fd, RVM_VCPU_CREATE, &vcpu_args);
 
     printf("vcpu_id = %d\n", vcpu_id);
