@@ -113,11 +113,17 @@ int handle_io(int vcpu_id, struct rvm_exit_io_packet *packet, uint64_t key) {
     if (packet->is_input) {
         int ret = dev->ops->read(dev, packet->port, &value);
         if (ret == 0) {
-            struct rvm_vcpu_write_state_args state = {
-                vcpu_id,
-                value.u32,
-            };
-            ret = ioctl(dev->rvm_fd, RVM_VCPU_WRITE_STATE, &state);
+            // struct rvm_vcpu_write_state_args state = {
+            //     vcpu_id,
+            //     value.u32,
+            // };
+            // ret = ioctl(dev->rvm_fd, RVM_VCPU_WRITE_STATE, &state);
+            struct rvm_vcpu_input_value_args input_value;
+            input_value.vcpu_id = vcpu_id;
+            input_value.access_size = packet->access_size;
+            input_value.u32 = value.u32;
+            // printf("access_size = %d, value = 0x%x\n", input_value.access_size, input_value.u32);
+            ret = ioctl(dev->rvm_fd, RVM_VCPU_WRITE_INPUT_VALUE, &input_value);
         }
         return ret;
     } else {

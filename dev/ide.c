@@ -75,7 +75,7 @@ static int ide_write(struct virt_device *dev, uint64_t port, struct rvm_io_value
             printf("IDE setup, cmd = 0x%x, secno = %d, count = %d\n", data->cmd, data->secno, data->count);
             return 0;
         default:
-            printf("IDE unhandled port write 0x%x\n", port);
+            printf("IDE unhandled port write 0x%x with value 0x%x\n", port, value->u8);
             return 1;
     }
     return 1;
