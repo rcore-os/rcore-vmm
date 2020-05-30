@@ -6,13 +6,13 @@
 
 #include <dev/bios.h>
 
-#define BIOS_BASE 0x40
+#define BIOS_BASE 0x00
 #define BIOS_SIZE 0x8
 
 struct bios_data {
 };
 
-static int bios_read(struct virt_device *dev, uint64_t port, struct rvm_io_value *value) {
+static int bios_read(struct virt_device *dev, uint64_t port, uint8_t access_size, union rvm_io_value *value) {
     // printf("BIOS read handler\n");
     value->u32 = 0;
     switch (port - BIOS_BASE) {
@@ -23,7 +23,7 @@ static int bios_read(struct virt_device *dev, uint64_t port, struct rvm_io_value
     return 1;
 }
 
-static int bios_write(struct virt_device *dev, uint64_t port, struct rvm_io_value *value) {
+static int bios_write(struct virt_device *dev, uint64_t port, uint8_t access_size, union rvm_io_value *value) {
     // printf("BIOS write handler\n");
     switch (port - BIOS_BASE) {
         case 0:

@@ -132,31 +132,28 @@ int handle_io(int vcpu_id, struct rvm_exit_io_packet *packet, uint64_t key) {
         if (packet->is_input)
             printf("IN %x\n", packet->port);
         else
-            printf("OUT %x < %x\n", packet->port, packet->u32);
+            printf("OUT %x < %d:%x\n", packet->port, packet->value_cnt, packet->values[0].u32);
     }
 
     struct virt_device *dev = (struct virt_device *)key;
-    struct rvm_io_value value = {};
-    value.access_size = packet->access_size;
     if (packet->is_input) {
-        int ret = dev->ops->read(dev, packet->port, &value);
-        if (ret == 0) {
-            // struct rvm_vcpu_write_state_args state = {
-            //     vcpu_id,
-            //     value.u32,
-            // };
-            // ret = ioctl(dev->rvm_fd, RVM_VCPU_WRITE_STATE, &state);
-            struct rvm_vcpu_input_value_args input_value;
-            input_value.vcpu_id = vcpu_id;
-            input_value.access_size = packet->access_size;
-            input_value.u32 = value.u32;
-            // printf("access_size = %d, value = 0x%x\n", input_value.access_size, input_value.u32);
-            ret = ioctl(dev->rvm_fd, RVM_VCPU_WRITE_INPUT_VALUE, &input_value);
+        struct rvm_vcpu_input_value_args input_value;
+        input_value.vcpu_id = vcpu_id;
+        input_value.access_size = packet->access_size;
+        input_value.value_cnt = packet->value_cnt;
+
+        for (int i = 0; i < packet->value_cnt; i ++) {
+            int ret = dev->ops->read(dev, packet->port, packet->access_size, &input_value.values[i]);
+            if (ret != 0) return ret;
         }
-        return ret;
+        // printf("input values[0] is 0x%x\n", input_value.values[0].u32);
+        return ioctl(dev->rvm_fd, RVM_VCPU_WRITE_INPUT_VALUE, &input_value);
     } else {
-        value.u32 = packet->u32;
-        return dev->ops->write(dev, packet->port, &value);
+        for (int i = 0; i < packet->value_cnt; i ++) {
+            int ret = dev->ops->write(dev, packet->port, packet->access_size, &packet->values[i]);
+            if (ret != 0) return ret;
+        }
+        return 0;
     }
 }
 

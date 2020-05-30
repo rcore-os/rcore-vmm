@@ -12,7 +12,7 @@
 struct lpt_data {
 };
 
-static int lpt_read(struct virt_device *dev, uint64_t port, struct rvm_io_value *value) {
+static int lpt_read(struct virt_device *dev, uint64_t port, uint8_t access_size, union rvm_io_value *value) {
     // printf("LPT read handler\n");
     value->u32 = 0;
     switch (port - LPT_BASE) {
@@ -26,7 +26,7 @@ static int lpt_read(struct virt_device *dev, uint64_t port, struct rvm_io_value 
     return 1;
 }
 
-static int lpt_write(struct virt_device *dev, uint64_t port, struct rvm_io_value *value) {
+static int lpt_write(struct virt_device *dev, uint64_t port, uint8_t access_size, union rvm_io_value *value) {
     // printf("LPT write handler\n");
     switch (port - LPT_BASE) {
         case 0:

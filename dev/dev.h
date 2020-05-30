@@ -13,8 +13,8 @@ struct virt_device {
 };
 
 struct virt_device_ops {
-    int (*read)(struct virt_device *dev, uint64_t port, struct rvm_io_value *value);
-    int (*write)(struct virt_device *dev, uint64_t port, struct rvm_io_value *value);
+    int (*read)(struct virt_device *dev, uint64_t port, uint8_t access_size, union rvm_io_value *value);
+    int (*write)(struct virt_device *dev, uint64_t port, uint8_t access_size, union rvm_io_value *value);
 };
 
 #endif // VMM_DEV_DEV_H

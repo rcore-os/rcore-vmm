@@ -36,4 +36,4 @@ start:
     jmp 0x7c00
 
     movb $0x00, %al # should not reach here
-    outb %al, $0x42
+    outb %al, $0x02

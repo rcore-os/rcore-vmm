@@ -16,22 +16,22 @@ struct cmos_data {
 struct other_data {
 };
 
-static int cmos_read(struct virt_device *dev, uint64_t port, struct rvm_io_value *value) {
+static int cmos_read(struct virt_device *dev, uint64_t port, uint8_t access_size, union rvm_io_value *value) {
     printf("CMOS read handler\n");
     return 0;
 }
 
-static int cmos_write(struct virt_device *dev, uint64_t port, struct rvm_io_value *value) {
+static int cmos_write(struct virt_device *dev, uint64_t port, uint8_t access_size, union rvm_io_value *value) {
     printf("CMOS write handler\n");
     return 0;
 }
 
-static int other_read(struct virt_device *dev, uint64_t port, struct rvm_io_value *value) {
+static int other_read(struct virt_device *dev, uint64_t port, uint8_t access_size, union rvm_io_value *value) {
     printf("other read handler\n");
     return 1;
 }
 
-static int other_write(struct virt_device *dev, uint64_t port, struct rvm_io_value *value) {
+static int other_write(struct virt_device *dev, uint64_t port, uint8_t access_size, union rvm_io_value *value) {
     printf("other write handler\n");
     switch (port) {
     case SYSTEM_CTRL_PORT: // Fast A20 gate

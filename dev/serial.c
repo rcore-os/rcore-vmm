@@ -28,27 +28,23 @@ struct serial_data {
     uint8_t line_control;
 };
 
-static int serial_read(struct virt_device *dev, uint64_t port, struct rvm_io_value *value) {
+static int serial_read(struct virt_device *dev, uint64_t port, uint8_t access_size, union rvm_io_value *value) {
     // printf("serial read handler\n");
     value->u32 = 0;
     switch (port - SERIAL_BASE0) {
         case INTERRUPT_ENABLE:
-            value->access_size = 1;
             value->u8 = ((struct serial_data*)dev->priv_data)->interrupt_enable;
             return 0;
         case LINE_CONTROL:
-            value->access_size = 1;
             value->u8 = ((struct serial_data*)dev->priv_data)->line_control;
             return 0;
         case LINE_STATUS:
-            value->access_size = 1;
             value->u8 = kI8250LineStatusIdle | kI8250LineStatusEmpty;
             return 0;
         case RECEIVE:
         case INTERRUPT_ID:
         case MODEM_CONTROL:
         case MODEM_STATUS... SCRATCH:
-            value->access_size = 1;
             value->u8 = 0; // FIXME: modify here to read from stdin
             return 0;
         default:
@@ -58,23 +54,23 @@ static int serial_read(struct virt_device *dev, uint64_t port, struct rvm_io_val
     return 1;
 }
 
-static int serial_write(struct virt_device *dev, uint64_t port, struct rvm_io_value *value) {
+static int serial_write(struct virt_device *dev, uint64_t port, uint8_t access_size, union rvm_io_value *value) {
     // printf("serial write handler 0x%x: %d\n", port, value->access_size);
     switch (port - SERIAL_BASE0) {
         case TRANSMIT:
-            for (int i = 0; i < value->access_size; i++) {
+            for (int i = 0; i < access_size; i++) {
                 printf("%c", value->buf[i]);
             }
             return 0;
         case INTERRUPT_ENABLE:
-            if (value->access_size != 1) {
+            if (access_size != 1) {
                 // return ZX_ERR_IO_DATA_INTEGRITY;
                 return 1;
             }
             ((struct serial_data*)dev->priv_data)->interrupt_enable = value->u8;
             return 0;
         case LINE_CONTROL:
-            if (value->access_size != 1) {
+            if (access_size != 1) {
                 // return ZX_ERR_IO_DATA_INTEGRITY;
                 return 1;
             }

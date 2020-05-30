@@ -43,7 +43,7 @@ with open('setup_ivt.S', 'w') as fd:
             IVT_VECTORS.append(f'\tjmp int_0x15')
         else:
             IVT_VECTORS.append(f'\tmovw ${i&0xFF}, %ax')
-            IVT_VECTORS.append(f'\toutw %ax, $0x41')
+            IVT_VECTORS.append(f'\toutw %ax, $0x01')
     template = template.replace('IVT_VECTORS_HERE', '\n'.join(IVT_VECTORS))
 
     SETUP_IVT = []

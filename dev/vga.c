@@ -12,7 +12,7 @@
 struct vga_data {
 };
 
-static int vga_read(struct virt_device *dev, uint64_t port, struct rvm_io_value *value) {
+static int vga_read(struct virt_device *dev, uint64_t port, uint8_t access_size, union rvm_io_value *value) {
     // printf("VGA read handler\n");
     value->u32 = 0;
     switch (port - VGA_BASE) {
@@ -25,7 +25,7 @@ static int vga_read(struct virt_device *dev, uint64_t port, struct rvm_io_value 
     return 1;
 }
 
-static int vga_write(struct virt_device *dev, uint64_t port, struct rvm_io_value *value) {
+static int vga_write(struct virt_device *dev, uint64_t port, uint8_t access_size, union rvm_io_value *value) {
     // printf("VGA write handler\n");
     switch (port - VGA_BASE) {
         case 0:
