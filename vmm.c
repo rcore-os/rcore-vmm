@@ -12,6 +12,8 @@
 #include <dev/serial.h>
 #include <dev/lpt.h>
 #include <dev/vga.h>
+#include <dev/ps2.h>
+#include <dev/bios.h>
 #include <rvm.h>
 
 const uint32_t GUEST_RAM_SZ = 16 * 1024 * 1024; // 16 MiB
@@ -21,6 +23,8 @@ struct virt_device SERIAL;
 struct virt_device IDE;
 struct virt_device LPT;
 struct virt_device VGA;
+struct virt_device PS2;
+struct virt_device BIOS;
 
 void test_hypercall() {
     for (int i = 0;; i++) {
@@ -66,6 +70,28 @@ int init_memory_bios(int rvm_fd, int vmid, const char *bios_file) {
     return 0;
 }
 
+int init_memory_fake_bios(int rvm_fd, int vmid, const char *fake_bios_file) {
+    // RAM
+    struct rvm_guest_add_memory_region_args region = {vmid, 0, GUEST_RAM_SZ};
+    char *ram_ptr = (char *)(intptr_t)ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
+
+    int fd = open(fake_bios_file, O_RDONLY);
+    if (fd < 0)
+        return -1;
+
+    struct stat statbuf;
+    stat(fake_bios_file, &statbuf);
+    int bios_size = statbuf.st_size;
+
+    const int FAKE_BIOS_ENTRY = 0x9000; // 36KiB
+    printf("FAKE_BIOS_ENTRY = 0x%x\n", FAKE_BIOS_ENTRY);
+    
+    read(fd, ram_ptr + FAKE_BIOS_ENTRY, bios_size);
+    close(fd);
+
+    return FAKE_BIOS_ENTRY;
+}
+
 int init_memory_ucore(int rvm_fd, int vmid, const char *ucore_img) {
     // RAM
     struct rvm_guest_add_memory_region_args region = {vmid, 0, GUEST_RAM_SZ};
@@ -89,6 +115,8 @@ void init_device(int rvm_fd, int vmid, const char* ide_img) {
     ide_init(&IDE, rvm_fd, vmid, ide_img);
     lpt_init(&LPT, rvm_fd, vmid);
     vga_init(&VGA, rvm_fd, vmid);
+    ps2_init(&PS2, rvm_fd, vmid);
+    bios_init(&BIOS, rvm_fd, vmid);
 }
 
 int handle_io(int vcpu_id, struct rvm_exit_io_packet *packet, uint64_t key) {
@@ -156,14 +184,19 @@ int main(int argc, char *argv[]) {
     int vmid = ioctl(fd, RVM_GUEST_CREATE);
     printf("vmid = %d\n", vmid);
 
-    const char *img = "/app/ucore.img";
-    if (argc > 1)
-        img = argv[1];
-    int entry = init_memory_ucore(fd, vmid, img);
+    // if (argc > 1)
+    //     img = argv[1];
+    // int entry = init_memory_ucore(fd, vmid, img);
+    // if (entry < 0)
+    //     return 0;
+    
+    const char *bios_img = "/app/fake_bios.bin";
+    const char *ucore_img = "/app/ucore.img";
+    int entry = init_memory_fake_bios(fd, vmid, bios_img);
     if (entry < 0)
         return 0;
 
-    init_device(fd, vmid, img);
+    init_device(fd, vmid, ucore_img);
 
     struct rvm_vcpu_create_args vcpu_args = {vmid, entry};
     int vcpu_id = ioctl(fd, RVM_VCPU_CREATE, &vcpu_args);
