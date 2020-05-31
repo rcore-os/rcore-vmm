@@ -3,6 +3,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
+#include <sys/mman.h>
 
 #include <dev/ide.h>
 
@@ -38,8 +39,11 @@
 struct ide_disk
 {
     uint32_t valid;
+
     uint8_t* img;
+    int img_fd;
     uint32_t total_size;
+
     uint8_t* id_data;
 };
 
@@ -196,6 +200,7 @@ void ide_init(struct virt_device *dev, int rvm_fd, int vmid)
         for (int disk_id = 0; disk_id < 2; disk_id ++) {
             IDE_DATA.base[base_id].disk[disk_id].valid = 0;
             IDE_DATA.base[base_id].disk[disk_id].img = NULL;
+            IDE_DATA.base[base_id].disk[disk_id].img_fd = -1;
             IDE_DATA.base[base_id].disk[disk_id].total_size = 0;
             IDE_DATA.base[base_id].disk[disk_id].id_data = NULL;
         }
@@ -258,21 +263,21 @@ void ide_add_file_img(struct virt_device *dev, const char* ide_file_img)
                 int file_size = statbuf.st_size;
 
                 int total_size = (file_size + IDE_SEC_SIZE - 1) / IDE_SEC_SIZE * IDE_SEC_SIZE;
-                uint8_t* img = (uint8_t *)malloc(total_size);
+                int img_fd = open(ide_file_img, O_RDWR);
+                uint8_t* img = NULL;
 
-                int fd = open(ide_file_img, O_RDONLY);
-                if (fd < 0)
+                if (img_fd < 0)
                 {
                     printf("[ERROR] unable to open ide img: %s\n", ide_file_img);
                     return;
                 }
                 else
                 {
-                    int read_size = read(fd, img, file_size);
-                    printf("[INFO] success to load %d bytes ide data, base:disk = %d:%d\n", read_size, base_id, disk_id);
-                    close(fd);
+                    img = (uint8_t *)mmap(NULL, file_size, PROT_READ | PROT_READ, MAP_PRIVATE, img_fd, 0);
                 }
+                printf("[INFO] success to map %s to ide base:disk = %d:%d\n", ide_file_img, base_id, disk_id);
                 data->base[base_id].disk[disk_id].img = img;
+                data->base[base_id].disk[disk_id].img_fd = img_fd;
                 data->base[base_id].disk[disk_id].total_size = total_size;
                 ide_disk_gen_id(&data->base[base_id].disk[disk_id]);
                 return;
