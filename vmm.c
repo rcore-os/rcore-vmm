@@ -77,7 +77,7 @@ int init_memory_fake_bios(int rvm_fd, int vmid, const char *fake_bios_file, stru
     // RAM
     struct rvm_guest_add_memory_region_args region = {vmid, 0, GUEST_RAM_SZ};
     char *ram_ptr = (char *)(intptr_t)ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
-    mem_set_push(mem_set, 0, GUEST_RAM_SZ, ram_ptr);
+    mem_set_push(mem_set, 0, GUEST_RAM_SZ, (uint8_t*)ram_ptr);
 
     int fd = open(fake_bios_file, O_RDONLY);
     if (fd < 0)
@@ -113,10 +113,10 @@ int init_memory_ucore(int rvm_fd, int vmid, const char *ucore_img) {
     return ENTRY;
 }
 
-void init_device(int rvm_fd, int vmid, const char* ide_img) {
+void init_device(int rvm_fd, int vmid) {
     io_port_init(&IO_PORT, rvm_fd, vmid);
     serial_init(&SERIAL, rvm_fd, vmid);
-    ide_init(&IDE, rvm_fd, vmid, ide_img);
+    ide_init(&IDE, rvm_fd, vmid);
     lpt_init(&LPT, rvm_fd, vmid);
     vga_init(&VGA, rvm_fd, vmid);
     ps2_init(&PS2, rvm_fd, vmid);
@@ -125,7 +125,9 @@ void init_device(int rvm_fd, int vmid, const char* ide_img) {
 
 int handle_io(int vcpu_id, struct rvm_exit_io_packet *packet, uint64_t key, struct vm_mem_set* mem_set) {
     if (0x1f0 <= packet->port && packet->port < 0x1f8) {
-        // IDE has too many info
+        // IDE0
+    } else if (0x170 <= packet->port && packet->port < 0x170 + 8) {
+        // IDE1
     } else if (0x3f8 <= packet->port && packet->port < 0x3ff) {
         // serial
     } else if (0x3D4 <= packet->port && packet->port < 0x3D4+8) {
@@ -157,7 +159,7 @@ int handle_io(int vcpu_id, struct rvm_exit_io_packet *packet, uint64_t key, stru
 
             // FIXME: get right guest_paddr
             uint64_t guest_paddr = (rdi >= 0xC0000000) ? (rdi - 0xC0000000) : rdi; // only for ucore
-            printf("repeat read at 0x%x\n", guest_paddr);
+            // printf("repeat read at 0x%x\n", guest_paddr);
 
             uint8_t* ram_ptr = mem_set_fetch(mem_set, guest_paddr);
             if (ram_ptr == (uint8_t*)(-1)) return -1;
@@ -189,7 +191,7 @@ int handle_io(int vcpu_id, struct rvm_exit_io_packet *packet, uint64_t key, stru
 
             // FIXME: get right guest_paddr
             uint64_t guest_paddr = (rsi >= 0xC0000000) ? (rsi - 0xC0000000) : rsi; // only for ucore
-            printf("repeat write at 0x%x\n", guest_paddr);
+            // printf("repeat write at 0x%x\n", guest_paddr);
 
             uint8_t* ram_ptr = mem_set_fetch(mem_set, guest_paddr);
             if (ram_ptr == (uint8_t*)(-1)) return -1;
@@ -250,12 +252,16 @@ int main(int argc, char *argv[]) {
     
     const char *bios_img = "/app/fake_bios.bin";
     const char *ucore_img = "/app/ucore.img";
+    const char *sfs_img = "/app/sfs.img";
     struct vm_mem_set mem_set;
     int entry = init_memory_fake_bios(fd, vmid, bios_img, &mem_set);
     if (entry < 0)
         return 0;
 
-    init_device(fd, vmid, ucore_img);
+    init_device(fd, vmid);
+    ide_add_file_img(&IDE, ucore_img); // os image
+    ide_add_empty_img(&IDE, 1024*1024*128); // swap image
+    ide_add_file_img(&IDE, sfs_img); // sfs image
 
     struct rvm_vcpu_create_args vcpu_args = {vmid, entry};
     int vcpu_id = ioctl(fd, RVM_VCPU_CREATE, &vcpu_args);
