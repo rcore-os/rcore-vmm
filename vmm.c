@@ -225,6 +225,16 @@ int handle_mmio(int vcpu_id, struct rvm_exit_mmio_packet *packet, uint64_t key) 
     return 1;
 }
 
+int handle_none(int vcpu_id) {
+    if (has_new_data(&SERIAL)) {
+        struct rvm_vcpu_tnterrupt_args args;
+        args.vcpu_id = vcpu_id;
+        args.vector = 32 /* IRQ_OFFSET */ + 1 /* IRQ_KBD */;
+        return ioctl(SERIAL.rvm_fd, RVM_VCPU_INTERRUPT, &args);
+    }
+    return 0;
+}
+
 int handle_exit(int vcpu_id, struct rvm_exit_packet *packet, struct vm_mem_set* mem_set) {
     // printf("Handle guest exit: kind(%d) key(0x%lx)\n", packet->kind, packet->key);
     switch (packet->kind) {
@@ -232,12 +242,16 @@ int handle_exit(int vcpu_id, struct rvm_exit_packet *packet, struct vm_mem_set* 
         return handle_io(vcpu_id, &packet->io, packet->key, mem_set);
     case RVM_EXIT_PKT_KIND_GUEST_MMIO:
         return handle_mmio(vcpu_id, &packet->mmio, packet->key);
+    case RVM_EXIT_PKT_KIND_NONE:
+        return handle_none(vcpu_id);
     default:
         return 1;
     }
 }
 
 int main(int argc, char *argv[]) {
+    fcntl(0, F_SETFL, fcntl(0, F_GETFL) | O_NONBLOCK);
+
     int fd = open("/dev/rvm", O_RDWR);
     printf("rvm fd = %d\n", fd);
 

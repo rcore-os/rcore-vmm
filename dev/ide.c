@@ -143,7 +143,7 @@ static int ide_base_write(uint32_t IOBASE, struct virt_device *dev, struct ide_b
     case ISA_COMMAND:
         base->cmd = value->u8;
         base->in_sec_offset = 0;
-        printf("IDE setup, base = %d, disk_id = %d, cmd = 0x%x, secno = %d, count = %d\n", IOBASE, base->disk_id, base->cmd, base->secno, base->count);
+        // printf("IDE setup, base = %d, disk_id = %d, cmd = 0x%x, secno = %d, count = %d\n", IOBASE, base->disk_id, base->cmd, base->secno, base->count);
         return 0;
     default:
         printf("IDE unhandled port write 0x%x with value 0x%x\n", port, value->u8);

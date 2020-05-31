@@ -35,26 +35,18 @@ struct serial_data {
     int kb_w_pos;
 };
 
-void check_stdin(struct serial_data* data) {
-    // FIXME
-    fcntl(0, F_SETFL, fcntl(0, F_GETFL) | O_NONBLOCK);
-    // while (true) {
-    //     uint8_t buf;
-    //     int n = read(0, &buf, 1);
-    //     if (n > 0) {
-    //         printf("====== check stdin %d\n", n);
-    //     }
-    // }
-
+// return true if has new data
+bool check_stdin(struct serial_data* data) {
     uint8_t buf;
     if ((data->kb_w_pos + 1) % KB_DATA_SIZE != data->kb_r_pos) {
         int n = read(0, &buf, 1);
         if (n > 0) {
-            printf("====== read stdin\n");
             data->kb_data[data->kb_w_pos] = buf;
             data->kb_w_pos = (data->kb_w_pos + 1) % KB_DATA_SIZE;
+            return true;
         }
     }
+    return false;
 }
 
 static int serial_read(struct virt_device *dev, uint64_t port, uint8_t access_size, union rvm_io_value *value) {
@@ -155,4 +147,9 @@ void serial_init(struct virt_device *dev, int rvm_fd, int vmid) {
         (uint64_t)dev,
     };
     ioctl(dev->rvm_fd, RVM_GUEST_SET_TRAP, &trap);
+}
+
+bool has_new_data(struct virt_device *dev) {
+    struct serial_data* data = (struct serial_data*)dev->priv_data;
+    return check_stdin(data);
 }
