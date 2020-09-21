@@ -3,6 +3,7 @@ ucore的物理内存使用布局：
 
 总大小：16MiB
 
+```
 0x7C00(31K) ~ 512 : bootloader
 0x8000(32K) ~ 404 : e820map 物理内存布局，由bios填写
 0x10000(64K) ~ 512*8 : ELF header
@@ -23,3 +24,4 @@ memory: 00010000, [000f0000, 000fffff], type = 2.
 memory: 07ee0000, [00100000, 07fdffff], type = 1.
 memory: 00020000, [07fe0000, 07ffffff], type = 2.
 memory: 00040000, [fffc0000, ffffffff], type = 2.
+```

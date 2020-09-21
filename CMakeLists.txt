@@ -1,10 +1,26 @@
-aux_source_directory(. VMM_SRCS)
-aux_source_directory(dev VMM_DEV_SRCS)
-add_executable(vmm ${VMM_SRCS} ${VMM_DEV_SRCS})
+cmake_minimum_required(VERSION 3.0)
 
-include_directories(.)
+project(rcore_vmm)
+set(CMAKE_OSX_DEPLOYMENT_TARGET "")
 
-file(COPY fake_bios/bin/fake_bios.bin DESTINATION ${EXECUTABLE_OUTPUT_PATH})
-file(COPY bios.bin DESTINATION ${EXECUTABLE_OUTPUT_PATH})
-file(COPY ucore.img DESTINATION ${EXECUTABLE_OUTPUT_PATH})
-file(COPY sfs.img DESTINATION ${EXECUTABLE_OUTPUT_PATH})
+# Path
+aux_source_directory(src SRCS)
+set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR})
+
+# Toolchain
+set(PREFIX ${ARCH}-linux-musl-)
+
+if (${ARCH} STREQUAL x86_64)
+    set(CMAKE_C_FLAGS       "-m64")
+else()
+    message("Unsupported arch: ${ARCH}")
+endif ()
+set(CMAKE_ASM_COMPILER      ${PREFIX}gcc)
+set(CMAKE_C_COMPILER        ${PREFIX}gcc)
+set(CMAKE_RANLIB            ${PREFIX}ranlib)
+set(CMAKE_C_FLAGS           "${CMAKE_C_FLAGS} -ggdb -Wall")
+set(CMAKE_ASM_FLAGS         ${CMAKE_C_FLAGS})
+set(CMAKE_C_LINK_FLAGS      "${LINK_FLAGS}")
+set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
+
+add_subdirectory(src)
