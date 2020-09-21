@@ -23,10 +23,6 @@ jobs:
         tar -xf $FILE.tgz;
         echo "::add-path::$PWD/$FILE/bin"
 
-    - name: Build BIOS
-      run: |
-        cd fake_bios && make
-
-    - name: Build VMM
+    - name: Build
       run: |
         make ARCH=${{ matrix.arch }}
