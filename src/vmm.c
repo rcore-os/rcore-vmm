@@ -176,10 +176,11 @@ int handle_io(int vcpu_id, struct rvm_exit_io_packet *packet, uint64_t key, stru
         uint8_t* ram_ptr = mem_set_fetch(mem_set, guest_paddr);
         if (ram_ptr == (uint8_t*)(-1)) return -1;
 
+        struct rvm_io_value value;
+        value.access_size = packet->access_size;
         if (packet->is_input) {
             for (int i = 0; i < count; i ++) {
-                struct rvm_io_value value;
-                int ret = dev->ops->read(dev, packet->port, packet->access_size, &value);
+                int ret = dev->ops->read(dev, packet->port, &value);
                 if (ret != 0) return ret;
                 for (int k = 0; k < packet->access_size; k ++) {
                     *ram_ptr = value.buf[k];
@@ -189,13 +190,12 @@ int handle_io(int vcpu_id, struct rvm_exit_io_packet *packet, uint64_t key, stru
             state.rdi += count;
         } else {
             for (int i = 0; i < count; i ++) {
-                struct rvm_io_value value;
                 value.u32 = 0;
                 for (int k = 0; k < packet->access_size; k ++) {
                     value.buf[k] = *ram_ptr;
                     ram_ptr ++;
                 }
-                int ret = dev->ops->write(dev, packet->port, packet->access_size, &value);
+                int ret = dev->ops->write(dev, packet->port, &value);
                 if (ret != 0) return ret;
             }
             state.rsi += count;
@@ -207,7 +207,7 @@ int handle_io(int vcpu_id, struct rvm_exit_io_packet *packet, uint64_t key, stru
         struct rvm_io_value value;
         value.access_size = packet->access_size;
         if (packet->is_input) {
-            int ret = dev->ops->read(dev, packet->port, packet->access_size, &value);
+            int ret = dev->ops->read(dev, packet->port, &value);
             if (ret != 0) return ret;
 
             struct rvm_vcpu_state_args args;
@@ -218,7 +218,7 @@ int handle_io(int vcpu_id, struct rvm_exit_io_packet *packet, uint64_t key, stru
             return ioctl(dev->rvm_fd, RVM_VCPU_WRITE_STATE, &args);
         } else {
             value.u32 = packet->u32;
-            return dev->ops->write(dev, packet->port, packet->access_size, &value);
+            return dev->ops->write(dev, packet->port, &value);
         }
     }
 }

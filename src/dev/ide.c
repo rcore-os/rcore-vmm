@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -63,7 +65,7 @@ struct ide_data
     struct ide_base_data base[2];
 };
 
-static int ide_base_read(uint32_t IOBASE, struct virt_device *dev, struct ide_base_data* base, uint64_t port, uint8_t access_size, struct rvm_io_value *value)
+static int ide_base_read(uint32_t IOBASE, struct virt_device *dev, struct ide_base_data* base, uint16_t port, struct rvm_io_value *value)
 {
     // printf("IDE read handler\n");
     value->u32 = 0;
@@ -79,14 +81,14 @@ static int ide_base_read(uint32_t IOBASE, struct virt_device *dev, struct ide_ba
     case ISA_DATA:
         if (base->cmd == IDE_CMD_IDENTIFY) { // FIXME
             const uint8_t *buf = base->disk[base->disk_id].id_data;
-            for (int i = 0; i < access_size; i++)
+            for (int i = 0; i < value->access_size; i++)
             {
                 value->buf[i] = buf[base->in_sec_offset];
                 base->in_sec_offset++;
             }
             return 0;
         } else if (base->cmd == IDE_CMD_READ) {
-            for (int i = 0; i < access_size; i++)
+            for (int i = 0; i < value->access_size; i++)
             {
                 value->buf[i] = base->disk[base->disk_id].img[base->secno * IDE_SEC_SIZE + base->in_sec_offset];
                 base->in_sec_offset++;
@@ -104,14 +106,14 @@ static int ide_base_read(uint32_t IOBASE, struct virt_device *dev, struct ide_ba
     return 1;
 }
 
-static int ide_base_write(uint32_t IOBASE, struct virt_device *dev, struct ide_base_data* base, uint64_t port, uint8_t access_size, struct rvm_io_value *value)
+static int ide_base_write(uint32_t IOBASE, struct virt_device *dev, struct ide_base_data* base, uint16_t port, struct rvm_io_value *value)
 {
     // printf("IDE write handler\n");
     switch (port - IOBASE)
     {
     case ISA_DATA:
         if (base->cmd == IDE_CMD_WRITE) {
-            for (int i = 0; i < access_size; i++)
+            for (int i = 0; i < value->access_size; i++)
             {
                 base->disk[base->disk_id].img[base->secno * IDE_SEC_SIZE + base->in_sec_offset] = value->buf[i];
                 base->in_sec_offset++;
@@ -156,22 +158,22 @@ static int ide_base_write(uint32_t IOBASE, struct virt_device *dev, struct ide_b
     return 1;
 }
 
-static int ide_read(struct virt_device *dev, uint64_t port, uint8_t access_size, struct rvm_io_value *value) {
+static int ide_read(struct virt_device *dev, uint16_t port, struct rvm_io_value *value) {
     if (IDE_BASE0 <= port && port < IDE_BASE0 + IDE_PORT_SIZE) {
-        return ide_base_read(IDE_BASE0, dev, &((struct ide_data*)dev->priv_data)->base[0], port, access_size, value);
+        return ide_base_read(IDE_BASE0, dev, &((struct ide_data*)dev->priv_data)->base[0], port, value);
     } else if (IDE_BASE1 <= port && port < IDE_BASE1 + IDE_PORT_SIZE) {
-        return ide_base_read(IDE_BASE1, dev, &((struct ide_data*)dev->priv_data)->base[1], port, access_size, value);
+        return ide_base_read(IDE_BASE1, dev, &((struct ide_data*)dev->priv_data)->base[1], port, value);
     } else {
         printf("BIOS unhandled port read 0x%x\n", port);
         return 1;
     }
 }
 
-static int ide_write(struct virt_device *dev, uint64_t port, uint8_t access_size, struct rvm_io_value *value) {
+static int ide_write(struct virt_device *dev, uint16_t port, struct rvm_io_value *value) {
     if (IDE_BASE0 <= port && port < IDE_BASE0 + IDE_PORT_SIZE) {
-        return ide_base_write(IDE_BASE0, dev, &((struct ide_data*)dev->priv_data)->base[0], port, access_size, value);
+        return ide_base_write(IDE_BASE0, dev, &((struct ide_data*)dev->priv_data)->base[0], port, value);
     } else if (IDE_BASE1 <= port && port < IDE_BASE1 + IDE_PORT_SIZE) {
-        return ide_base_write(IDE_BASE1, dev, &((struct ide_data*)dev->priv_data)->base[1], port, access_size, value);
+        return ide_base_write(IDE_BASE1, dev, &((struct ide_data*)dev->priv_data)->base[1], port, value);
     } else {
         printf("BIOS unhandled port write 0x%x\n", port);
         return 1;

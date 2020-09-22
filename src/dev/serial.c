@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <sys/ioctl.h>
 #include <fcntl.h>
+#include <unistd.h>
 
 #include <dev/serial.h>
 
@@ -49,7 +50,7 @@ bool check_stdin(struct serial_data* data) {
     return false;
 }
 
-static int serial_read(struct virt_device *dev, uint64_t port, uint8_t access_size, struct rvm_io_value *value) {
+static int serial_read(struct virt_device *dev, uint16_t port, struct rvm_io_value *value) {
     // printf("serial read handler\n");
     value->u32 = 0;
     struct serial_data* data = (struct serial_data*)dev->priv_data;
@@ -69,11 +70,11 @@ static int serial_read(struct virt_device *dev, uint64_t port, uint8_t access_si
             }
             return 0;
         case RECEIVE:
-            for (int i = 0; i < access_size; i ++) {
+            for (int i = 0; i < value->access_size; i ++) {
                 check_stdin(data);
             }
             value->u32 = 0;
-            for (int i = 0; i < access_size; i ++) {
+            for (int i = 0; i < value->access_size; i ++) {
                 if (data->kb_r_pos != data->kb_w_pos) {
                     value->buf[i] = data->kb_data[data->kb_r_pos];
                     data->kb_r_pos = (data->kb_r_pos + 1) % KB_DATA_SIZE;
@@ -92,25 +93,25 @@ static int serial_read(struct virt_device *dev, uint64_t port, uint8_t access_si
     return 1;
 }
 
-static int serial_write(struct virt_device *dev, uint64_t port, uint8_t access_size, struct rvm_io_value *value) {
+static int serial_write(struct virt_device *dev, uint16_t port, struct rvm_io_value *value) {
     // printf("serial write handler 0x%x: %d\n", port, value->access_size);
     struct serial_data* data = (struct serial_data*)dev->priv_data;
     switch (port - SERIAL_BASE0) {
         case TRANSMIT:
-            for (int i = 0; i < access_size; i++) {
+            for (int i = 0; i < value->access_size; i++) {
                 printf("%c", value->buf[i]);
             }
             fflush(stdout);
             return 0;
         case INTERRUPT_ENABLE:
-            if (access_size != 1) {
+            if (value->access_size != 1) {
                 // return ZX_ERR_IO_DATA_INTEGRITY;
                 return 1;
             }
             data->interrupt_enable = value->u8;
             return 0;
         case LINE_CONTROL:
-            if (access_size != 1) {
+            if (value->access_size != 1) {
                 // return ZX_ERR_IO_DATA_INTEGRITY;
                 return 1;
             }
