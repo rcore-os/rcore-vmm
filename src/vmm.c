@@ -39,13 +39,20 @@ void test_hypercall() {
     }
 }
 
-int init_memory_bios(int rvm_fd, int vmid, const char* bios_file) {
+int init_memory_seabios(int rvm_fd, int vmid, const char* bios_file) {
+    int fd = open(bios_file, O_RDONLY);
+    if (fd < 0) {
+        printf("fail to open BIOS image '%s': %d\n", bios_file, fd);
+        return fd;
+    }
+
     // RAM
     struct rvm_guest_add_memory_region_args region = {vmid, 0, GUEST_RAM_SZ};
     char* ram_ptr = (char*)(intptr_t)ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
-
-    int fd = open(bios_file, O_RDONLY);
-    if (fd < 0) return -1;
+    if (ram_ptr < (char*)0) {
+        printf("fail to add guest memory region: %d\n", (int)(intptr_t)ram_ptr);
+        return (intptr_t)ram_ptr;
+    }
 
     struct stat statbuf;
     stat(bios_file, &statbuf);
@@ -69,12 +76,19 @@ int init_memory_bios(int rvm_fd, int vmid, const char* bios_file) {
 }
 
 int init_memory_fake_bios(int rvm_fd, int vmid, const char* fake_bios_file, struct vm_mem_set* mem_set) {
-    mem_set_init(mem_set);
+    int fd = open(fake_bios_file, O_RDONLY);
+    if (fd < 0) {
+        printf("fail to open BIOS image '%s': %d\n", fake_bios_file, fd);
+        return fd;
+    }
 
     // RAM
     struct rvm_guest_add_memory_region_args region = {vmid, 0, GUEST_RAM_SZ};
     char* ram_ptr = (char*)(intptr_t)ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
-    mem_set_push(mem_set, 0, GUEST_RAM_SZ, (uint8_t*)ram_ptr);
+    if (ram_ptr < (char*)0) {
+        printf("fail to add guest memory region: %d\n", (int)(intptr_t)ram_ptr);
+        return (intptr_t)ram_ptr;
+    }
 
     // Setup the guest page table.
     uint64_t* pt0 = (uint64_t*)ram_ptr;
@@ -82,8 +96,8 @@ int init_memory_fake_bios(int rvm_fd, int vmid, const char* fake_bios_file, stru
     pt0[0] = PAGE_SIZE | PTE_P | PTE_W | PTE_U;
     pt1[0] = 0 | PTE_P | PTE_W | PTE_U | PTE_HG;
 
-    int fd = open(fake_bios_file, O_RDONLY);
-    if (fd < 0) return -1;
+    mem_set_init(mem_set);
+    mem_set_push(mem_set, 0, GUEST_RAM_SZ, (uint8_t*)ram_ptr);
 
     struct stat statbuf;
     stat(fake_bios_file, &statbuf);
@@ -99,12 +113,19 @@ int init_memory_fake_bios(int rvm_fd, int vmid, const char* fake_bios_file, stru
 }
 
 int init_memory_ucore(int rvm_fd, int vmid, const char* ucore_img) {
+    int fd = open(ucore_img, O_RDONLY);
+    if (fd < 0) {
+        printf("fail to open uCore image '%s': %d\n", ucore_img, fd);
+        return fd;
+    }
+
     // RAM
     struct rvm_guest_add_memory_region_args region = {vmid, 0, GUEST_RAM_SZ};
     char* ram_ptr = (char*)(intptr_t)ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
-
-    int fd = open(ucore_img, O_RDONLY);
-    if (fd < 0) return -1;
+    if (ram_ptr < (char*)0) {
+        printf("fail to add guest memory region: %d\n", (int)(intptr_t)ram_ptr);
+        return (intptr_t)ram_ptr;
+    }
 
     const int SECT_SIZE = 512;
     const int ENTRY = 0x7c00;
@@ -234,9 +255,17 @@ int main(int argc, char* argv[]) {
 
     int fd = open("/dev/rvm", O_RDWR);
     printf("rvm fd = %d\n", fd);
+    if (fd < 0) {
+        printf("failed to open /dev/rvm: %d\n", fd);
+        return 1;
+    }
 
     int vmid = ioctl(fd, RVM_GUEST_CREATE);
     printf("vmid = %d\n", vmid);
+    if (vmid < 0) {
+        printf("failed to create guest: %d\n", vmid);
+        return 1;
+    }
 
     // if (argc > 1)
     //     img = argv[1];
@@ -249,7 +278,10 @@ int main(int argc, char* argv[]) {
     const char* sfs_img = "sfs.img";
     struct vm_mem_set mem_set;
     int entry = init_memory_fake_bios(fd, vmid, bios_img, &mem_set);
-    if (entry < 0) return 0;
+    if (entry < 0) {
+        printf("failed to init memory of Fake BIOS: %d\n", entry);
+        return 1;
+    }
 
     init_device(fd, vmid);
     ide_add_file_img(&IDE, ucore_img);          // os image
@@ -258,13 +290,24 @@ int main(int argc, char* argv[]) {
 
     struct rvm_vcpu_create_args vcpu_args = {vmid, entry};
     int vcpu_id = ioctl(fd, RVM_VCPU_CREATE, &vcpu_args);
-
     printf("vcpu_id = %d\n", vcpu_id);
+    if (vcpu_id < 0) {
+        printf("failed to create vcpu: %d\n", vcpu_id);
+        return 1;
+    }
 
     for (;;) {
         struct rvm_vcpu_resmue_args args = {vcpu_id};
         int ret = ioctl(fd, RVM_VCPU_RESUME, &args);
-        if (ret < 0 || handle_exit(vcpu_id, &args.packet, &mem_set)) break;
+        if (ret < 0) {
+            printf("failed to resume vcpu: %d\n", ret);
+            break;
+        }
+        ret = handle_exit(vcpu_id, &args.packet, &mem_set);
+        if (ret < 0) {
+            printf("failed to handle VM exit: kind = %d", args.packet.kind);
+            break;
+        }
     }
 
     close(fd);
