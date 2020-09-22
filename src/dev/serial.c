@@ -49,7 +49,7 @@ bool check_stdin(struct serial_data* data) {
     return false;
 }
 
-static int serial_read(struct virt_device *dev, uint64_t port, uint8_t access_size, union rvm_io_value *value) {
+static int serial_read(struct virt_device *dev, uint64_t port, uint8_t access_size, struct rvm_io_value *value) {
     // printf("serial read handler\n");
     value->u32 = 0;
     struct serial_data* data = (struct serial_data*)dev->priv_data;
@@ -92,7 +92,7 @@ static int serial_read(struct virt_device *dev, uint64_t port, uint8_t access_si
     return 1;
 }
 
-static int serial_write(struct virt_device *dev, uint64_t port, uint8_t access_size, union rvm_io_value *value) {
+static int serial_write(struct virt_device *dev, uint64_t port, uint8_t access_size, struct rvm_io_value *value) {
     // printf("serial write handler 0x%x: %d\n", port, value->access_size);
     struct serial_data* data = (struct serial_data*)dev->priv_data;
     switch (port - SERIAL_BASE0) {

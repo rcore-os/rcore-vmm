@@ -4,10 +4,38 @@
 
 .set secno, 0
 
-# start address should be 0:0x9000, in real mode
+# start address should be 0:0x9000, in IA-32e mode
 .globl start
+.code64                                             # Assemble for 64-bit mode
 start:
+    cli
+    cld
+
+clear_PG_PE:
+    mov %cr0, %rax
+    and $~(CR0_PG|CR0_PE), %eax
+    mov %cr4, %rbx
+    and $~CR4_PAE, %ebx
+
+    mov $IA32_EFER_MSR, %ecx                        # Set the C-register to 0xC0000080, which is the EFER MSR.
+
+    mov %rax, %cr0                                  # Clear PG and PE in CR0
+    jmp clear_PAE_LME
+
 .code16                                             # Assemble for 16-bit mode
+clear_PAE_LME:
+    mov $0, %edx
+    mov %edx, %cr3                                  # Clear CR3 to flush TLB
+    mov %ebx, %cr4                                  # Clear PAE in CR4
+
+    rdmsr                                           # Read from the model-specific register.
+    andw $~IA32_EFER_LME, %ax                       # Set the LM-bit which is the 9th bit (bit 8).
+    wrmsr                                           # Write to the model-specific register.##
+
+    jmp start16
+
+.code16
+start16:
     cli                                             # Disable interrupts
     cld                                             # String operations increment
 
@@ -29,7 +57,7 @@ start:
     mov $0x7c00, %edi
     mov $128, %ecx
     mov $0x1f0, %edx
-    cld    
+    cld
     repnz insl
 
     call setup_ivt

@@ -17,7 +17,13 @@
 #include <dev/bios.h>
 #include <rvm.h>
 
+#define PTE_P           0x001                   // Present
+#define PTE_W           0x002                   // Writeable
+#define PTE_U           0x004                   // User
+#define PTE_HG          0x080                   // Huge page
+
 const uint32_t GUEST_RAM_SZ = 16 * 1024 * 1024; // 16 MiB
+const uint32_t PAGE_SIZE = 4096;
 
 struct virt_device IO_PORT;
 struct virt_device SERIAL;
@@ -79,6 +85,12 @@ int init_memory_fake_bios(int rvm_fd, int vmid, const char *fake_bios_file, stru
     char *ram_ptr = (char *)(intptr_t)ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
     mem_set_push(mem_set, 0, GUEST_RAM_SZ, (uint8_t*)ram_ptr);
 
+    // Setup the guest page table.
+    uint64_t* pt0 = (uint64_t *)ram_ptr;
+    uint64_t* pt1 = (uint64_t *)(ram_ptr + PAGE_SIZE);
+    pt0[0] = PAGE_SIZE | PTE_P | PTE_W | PTE_U;
+    pt1[0] = 0 | PTE_P | PTE_W | PTE_U | PTE_HG;
+
     int fd = open(fake_bios_file, O_RDONLY);
     if (fd < 0)
         return -1;
@@ -89,7 +101,7 @@ int init_memory_fake_bios(int rvm_fd, int vmid, const char *fake_bios_file, stru
 
     const int FAKE_BIOS_ENTRY = 0x9000; // 36KiB
     printf("FAKE_BIOS_ENTRY = 0x%x\n", FAKE_BIOS_ENTRY);
-    
+
     read(fd, ram_ptr + FAKE_BIOS_ENTRY, bios_size);
     close(fd);
 
@@ -145,27 +157,28 @@ int handle_io(int vcpu_id, struct rvm_exit_io_packet *packet, uint64_t key, stru
 
     struct virt_device *dev = (struct virt_device *)key;
 
-    struct rvm_vcpu_state_args state_args;
-    state_args.vcpu_id = vcpu_id;
-    {
-        int ret = ioctl(dev->rvm_fd, RVM_VCPU_READ_STATE, &state_args);
+    if (packet->is_repeat) {
+        struct rvm_vcpu_state state;
+        struct rvm_vcpu_state_args args;
+        args.vcpu_id = vcpu_id;
+        args.kind = RVM_VCPU_STATE;
+        args.vcpu_state_ptr = &state;
+        args.buf_size = sizeof(state);
+        int ret = ioctl(dev->rvm_fd, RVM_VCPU_READ_STATE, &args);
         if (ret != 0) return ret;
-    }
 
-    if (packet->is_input) {
-        if (packet->is_repeat) {
-            uint64_t rcx = state_args.guest_state.rcx;
-            uint64_t rdi = state_args.guest_state.rdi;
+        uint64_t count = state.rcx;
+        uint64_t addr = packet->is_input ? state.rdi : state.rsi;
 
-            // FIXME: get right guest_paddr
-            uint64_t guest_paddr = (rdi >= 0xC0000000) ? (rdi - 0xC0000000) : rdi; // only for ucore
-            // printf("repeat read at 0x%x\n", guest_paddr);
+        // FIXME: get right guest_paddr
+        uint64_t guest_paddr = (addr >= 0xC0000000) ? (addr - 0xC0000000) : addr; // only for ucore
+        // printf("repeat read/write at 0x%x\n", guest_paddr);
+        uint8_t* ram_ptr = mem_set_fetch(mem_set, guest_paddr);
+        if (ram_ptr == (uint8_t*)(-1)) return -1;
 
-            uint8_t* ram_ptr = mem_set_fetch(mem_set, guest_paddr);
-            if (ram_ptr == (uint8_t*)(-1)) return -1;
-
-            for (int i = 0; i < rcx; i ++) {
-                union rvm_io_value value;
+        if (packet->is_input) {
+            for (int i = 0; i < count; i ++) {
+                struct rvm_io_value value;
                 int ret = dev->ops->read(dev, packet->port, packet->access_size, &value);
                 if (ret != 0) return ret;
                 for (int k = 0; k < packet->access_size; k ++) {
@@ -173,31 +186,10 @@ int handle_io(int vcpu_id, struct rvm_exit_io_packet *packet, uint64_t key, stru
                     ram_ptr ++;
                 }
             }
-
-            state_args.guest_state.rdi += rcx;
-            state_args.guest_state.rcx = 0;
-            return ioctl(dev->rvm_fd, RVM_VCPU_WRITE_STATE, &state_args);
+            state.rdi += count;
         } else {
-            union rvm_io_value value;
-            int ret = dev->ops->read(dev, packet->port, packet->access_size, &value);
-            if (ret != 0) return ret;
-            state_args.guest_state.rax = value.u32;
-            return ioctl(dev->rvm_fd, RVM_VCPU_WRITE_STATE, &state_args);
-        }
-    } else {
-        if (packet->is_repeat) {
-            uint64_t rcx = state_args.guest_state.rcx;
-            uint64_t rsi = state_args.guest_state.rsi;
-
-            // FIXME: get right guest_paddr
-            uint64_t guest_paddr = (rsi >= 0xC0000000) ? (rsi - 0xC0000000) : rsi; // only for ucore
-            // printf("repeat write at 0x%x\n", guest_paddr);
-
-            uint8_t* ram_ptr = mem_set_fetch(mem_set, guest_paddr);
-            if (ram_ptr == (uint8_t*)(-1)) return -1;
-
-            for (int i = 0; i < rcx; i ++) {
-                union rvm_io_value value;
+            for (int i = 0; i < count; i ++) {
+                struct rvm_io_value value;
                 value.u32 = 0;
                 for (int k = 0; k < packet->access_size; k ++) {
                     value.buf[k] = *ram_ptr;
@@ -206,16 +198,27 @@ int handle_io(int vcpu_id, struct rvm_exit_io_packet *packet, uint64_t key, stru
                 int ret = dev->ops->write(dev, packet->port, packet->access_size, &value);
                 if (ret != 0) return ret;
             }
+            state.rsi += count;
+        }
 
-            state_args.guest_state.rsi += rcx;
-            state_args.guest_state.rcx = 0;
-            return ioctl(dev->rvm_fd, RVM_VCPU_WRITE_STATE, &state_args);
-        } else {
-            union rvm_io_value value;
-            value.u32 = state_args.guest_state.rax;
-            int ret = dev->ops->write(dev, packet->port, packet->access_size, &value);
+        state.rcx = 0;
+        return ioctl(dev->rvm_fd, RVM_VCPU_WRITE_STATE, &args);
+    } else {
+        struct rvm_io_value value;
+        value.access_size = packet->access_size;
+        if (packet->is_input) {
+            int ret = dev->ops->read(dev, packet->port, packet->access_size, &value);
             if (ret != 0) return ret;
-            return 0;
+
+            struct rvm_vcpu_state_args args;
+            args.vcpu_id = vcpu_id;
+            args.kind = RVM_VCPU_IO;
+            args.vcpu_io_ptr = (struct rvm_vcpu_io *)&value;
+            args.buf_size = sizeof(value);
+            return ioctl(dev->rvm_fd, RVM_VCPU_WRITE_STATE, &args);
+        } else {
+            value.u32 = packet->u32;
+            return dev->ops->write(dev, packet->port, packet->access_size, &value);
         }
     }
 }
@@ -225,16 +228,6 @@ int handle_mmio(int vcpu_id, struct rvm_exit_mmio_packet *packet, uint64_t key) 
     return 1;
 }
 
-int handle_none(int vcpu_id) {
-    if (has_new_data(&SERIAL)) {
-        struct rvm_vcpu_tnterrupt_args args;
-        args.vcpu_id = vcpu_id;
-        args.vector = 32 /* IRQ_OFFSET */ + 1 /* IRQ_KBD */;
-        return ioctl(SERIAL.rvm_fd, RVM_VCPU_INTERRUPT, &args);
-    }
-    return 0;
-}
-
 int handle_exit(int vcpu_id, struct rvm_exit_packet *packet, struct vm_mem_set* mem_set) {
     // printf("Handle guest exit: kind(%d) key(0x%lx)\n", packet->kind, packet->key);
     switch (packet->kind) {
@@ -242,8 +235,6 @@ int handle_exit(int vcpu_id, struct rvm_exit_packet *packet, struct vm_mem_set* 
         return handle_io(vcpu_id, &packet->io, packet->key, mem_set);
     case RVM_EXIT_PKT_KIND_GUEST_MMIO:
         return handle_mmio(vcpu_id, &packet->mmio, packet->key);
-    case RVM_EXIT_PKT_KIND_NONE:
-        return handle_none(vcpu_id);
     default:
         return 1;
     }
@@ -263,10 +254,10 @@ int main(int argc, char *argv[]) {
     // int entry = init_memory_ucore(fd, vmid, img);
     // if (entry < 0)
     //     return 0;
-    
-    const char *bios_img = "/app/fake_bios.bin";
-    const char *ucore_img = "/app/ucore.img";
-    const char *sfs_img = "/app/sfs.img";
+
+    const char *bios_img = "fake_bios.bin";
+    const char *ucore_img = "ucore.img";
+    const char *sfs_img = "sfs.img";
     struct vm_mem_set mem_set;
     int entry = init_memory_fake_bios(fd, vmid, bios_img, &mem_set);
     if (entry < 0)

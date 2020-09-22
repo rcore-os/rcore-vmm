@@ -63,7 +63,7 @@ struct ide_data
     struct ide_base_data base[2];
 };
 
-static int ide_base_read(uint32_t IOBASE, struct virt_device *dev, struct ide_base_data* base, uint64_t port, uint8_t access_size, union rvm_io_value *value)
+static int ide_base_read(uint32_t IOBASE, struct virt_device *dev, struct ide_base_data* base, uint64_t port, uint8_t access_size, struct rvm_io_value *value)
 {
     // printf("IDE read handler\n");
     value->u32 = 0;
@@ -104,7 +104,7 @@ static int ide_base_read(uint32_t IOBASE, struct virt_device *dev, struct ide_ba
     return 1;
 }
 
-static int ide_base_write(uint32_t IOBASE, struct virt_device *dev, struct ide_base_data* base, uint64_t port, uint8_t access_size, union rvm_io_value *value)
+static int ide_base_write(uint32_t IOBASE, struct virt_device *dev, struct ide_base_data* base, uint64_t port, uint8_t access_size, struct rvm_io_value *value)
 {
     // printf("IDE write handler\n");
     switch (port - IOBASE)
@@ -156,7 +156,7 @@ static int ide_base_write(uint32_t IOBASE, struct virt_device *dev, struct ide_b
     return 1;
 }
 
-static int ide_read(struct virt_device *dev, uint64_t port, uint8_t access_size, union rvm_io_value *value) {
+static int ide_read(struct virt_device *dev, uint64_t port, uint8_t access_size, struct rvm_io_value *value) {
     if (IDE_BASE0 <= port && port < IDE_BASE0 + IDE_PORT_SIZE) {
         return ide_base_read(IDE_BASE0, dev, &((struct ide_data*)dev->priv_data)->base[0], port, access_size, value);
     } else if (IDE_BASE1 <= port && port < IDE_BASE1 + IDE_PORT_SIZE) {
@@ -167,7 +167,7 @@ static int ide_read(struct virt_device *dev, uint64_t port, uint8_t access_size,
     }
 }
 
-static int ide_write(struct virt_device *dev, uint64_t port, uint8_t access_size, union rvm_io_value *value) {
+static int ide_write(struct virt_device *dev, uint64_t port, uint8_t access_size, struct rvm_io_value *value) {
     if (IDE_BASE0 <= port && port < IDE_BASE0 + IDE_PORT_SIZE) {
         return ide_base_write(IDE_BASE0, dev, &((struct ide_data*)dev->priv_data)->base[0], port, access_size, value);
     } else if (IDE_BASE1 <= port && port < IDE_BASE1 + IDE_PORT_SIZE) {
