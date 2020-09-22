@@ -1,7 +1,9 @@
 ARCH ?= x86_64
 MODE ?= release
+UCORE_LAB ?= 8
 
 out_dir := build/$(ARCH)
+ucore_dir := ucore/labcodes_answer/lab${UCORE_LAB}_result
 
 cmake_build_args := -DARCH=$(ARCH)
 ifeq ($(MODE), release)
@@ -12,7 +14,7 @@ endif
 
 all: build
 
-build: bios vmm
+build: bios vmm ucore
 
 bios:
 	@echo Building Fake BIOS
@@ -28,8 +30,18 @@ vmm:
 	@mkdir -p $(out_dir)
 	@cp src/build/vmm $(out_dir)
 
+ucore:
+	@echo Building uCore OS
+	@cd $(ucore_dir) && make bin/ucore.img
+	@cp $(ucore_dir)/bin/ucore.img $(out_dir)
+ifeq ($(UCORE_LAB), 8)
+	@cd $(ucore_dir) && make bin/sfs.img
+	@cp $(ucore_dir)/bin/sfs.img $(out_dir)
+endif
+
 clean:
 	@rm -rf src/build fake_bios/build
+	@cd $(ucore_dir) && make clean
 	@rm -rf build
 
-.PHONY: build clean bios vmm
+.PHONY: build clean bios vmm ucore

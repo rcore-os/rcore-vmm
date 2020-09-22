@@ -1,0 +1,4 @@
+[submodule "ucore"]
+	path = ucore
+	url = https://github.com/chyyuu/os_kernel_lab.git
+	branch = master
