@@ -7,20 +7,20 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include <mem_set.h>
+#include <dev/bios.h>
 #include <dev/ide.h>
 #include <dev/io_port.h>
-#include <dev/serial.h>
 #include <dev/lpt.h>
-#include <dev/vga.h>
 #include <dev/ps2.h>
-#include <dev/bios.h>
+#include <dev/serial.h>
+#include <dev/vga.h>
+#include <mem_set.h>
 #include <rvm.h>
 
-#define PTE_P           0x001                   // Present
-#define PTE_W           0x002                   // Writeable
-#define PTE_U           0x004                   // User
-#define PTE_HG          0x080                   // Huge page
+#define PTE_P  0x001 // Present
+#define PTE_W  0x002 // Writeable
+#define PTE_U  0x004 // User
+#define PTE_HG 0x080 // Huge page
 
 const uint32_t GUEST_RAM_SZ = 16 * 1024 * 1024; // 16 MiB
 const uint32_t PAGE_SIZE = 4096;
@@ -35,26 +35,17 @@ struct virt_device BIOS;
 
 void test_hypercall() {
     for (int i = 0;; i++) {
-        asm volatile(
-            "vmcall"
-            :
-            : "a"(i),
-              "b"(2),
-              "c"(3),
-              "d"(3),
-              "S"(3)
-            : "memory");
+        asm volatile("vmcall" : : "a"(i), "b"(2), "c"(3), "d"(3), "S"(3) : "memory");
     }
 }
 
-int init_memory_bios(int rvm_fd, int vmid, const char *bios_file) {
+int init_memory_bios(int rvm_fd, int vmid, const char* bios_file) {
     // RAM
     struct rvm_guest_add_memory_region_args region = {vmid, 0, GUEST_RAM_SZ};
-    char *ram_ptr = (char *)(intptr_t)ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
+    char* ram_ptr = (char*)(intptr_t)ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
 
     int fd = open(bios_file, O_RDONLY);
-    if (fd < 0)
-        return -1;
+    if (fd < 0) return -1;
 
     struct stat statbuf;
     stat(bios_file, &statbuf);
@@ -63,7 +54,7 @@ int init_memory_bios(int rvm_fd, int vmid, const char *bios_file) {
     // map BIOS at the top of memory
     region.guest_start_paddr = (uint32_t)-bios_size;
     region.memory_size = bios_size;
-    char *bios_ptr = (char *)(intptr_t)ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
+    char* bios_ptr = (char*)(intptr_t)ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
     printf("bios_ptr = %p\n", bios_ptr);
 
     read(fd, bios_ptr, bios_size);
@@ -77,23 +68,22 @@ int init_memory_bios(int rvm_fd, int vmid, const char *bios_file) {
     return 0;
 }
 
-int init_memory_fake_bios(int rvm_fd, int vmid, const char *fake_bios_file, struct vm_mem_set* mem_set) {
+int init_memory_fake_bios(int rvm_fd, int vmid, const char* fake_bios_file, struct vm_mem_set* mem_set) {
     mem_set_init(mem_set);
 
     // RAM
     struct rvm_guest_add_memory_region_args region = {vmid, 0, GUEST_RAM_SZ};
-    char *ram_ptr = (char *)(intptr_t)ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
+    char* ram_ptr = (char*)(intptr_t)ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
     mem_set_push(mem_set, 0, GUEST_RAM_SZ, (uint8_t*)ram_ptr);
 
     // Setup the guest page table.
-    uint64_t* pt0 = (uint64_t *)ram_ptr;
-    uint64_t* pt1 = (uint64_t *)(ram_ptr + PAGE_SIZE);
+    uint64_t* pt0 = (uint64_t*)ram_ptr;
+    uint64_t* pt1 = (uint64_t*)(ram_ptr + PAGE_SIZE);
     pt0[0] = PAGE_SIZE | PTE_P | PTE_W | PTE_U;
     pt1[0] = 0 | PTE_P | PTE_W | PTE_U | PTE_HG;
 
     int fd = open(fake_bios_file, O_RDONLY);
-    if (fd < 0)
-        return -1;
+    if (fd < 0) return -1;
 
     struct stat statbuf;
     stat(fake_bios_file, &statbuf);
@@ -108,14 +98,13 @@ int init_memory_fake_bios(int rvm_fd, int vmid, const char *fake_bios_file, stru
     return FAKE_BIOS_ENTRY;
 }
 
-int init_memory_ucore(int rvm_fd, int vmid, const char *ucore_img) {
+int init_memory_ucore(int rvm_fd, int vmid, const char* ucore_img) {
     // RAM
     struct rvm_guest_add_memory_region_args region = {vmid, 0, GUEST_RAM_SZ};
-    char *ram_ptr = (char *)(intptr_t)ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
+    char* ram_ptr = (char*)(intptr_t)ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
 
     int fd = open(ucore_img, O_RDONLY);
-    if (fd < 0)
-        return -1;
+    if (fd < 0) return -1;
 
     const int SECT_SIZE = 512;
     const int ENTRY = 0x7c00;
@@ -135,18 +124,18 @@ void init_device(int rvm_fd, int vmid) {
     bios_init(&BIOS, rvm_fd, vmid);
 }
 
-int handle_io(int vcpu_id, struct rvm_exit_io_packet *packet, uint64_t key, struct vm_mem_set* mem_set) {
+int handle_io(int vcpu_id, struct rvm_exit_io_packet* packet, uint64_t key, struct vm_mem_set* mem_set) {
     if (0x1f0 <= packet->port && packet->port < 0x1f8) {
         // IDE0
     } else if (0x170 <= packet->port && packet->port < 0x170 + 8) {
         // IDE1
     } else if (0x3f8 <= packet->port && packet->port < 0x3ff) {
         // serial
-    } else if (0x3D4 <= packet->port && packet->port < 0x3D4+8) {
+    } else if (0x3D4 <= packet->port && packet->port < 0x3D4 + 8) {
         // VGA
-    } else if (0x378 <= packet->port && packet->port < 0x378+8) {
+    } else if (0x378 <= packet->port && packet->port < 0x378 + 8) {
         // LPT
-    } else if (0x60 <= packet->port && packet->port < 0x60+8) {
+    } else if (0x60 <= packet->port && packet->port < 0x60 + 8) {
         // PS2
     } else {
         if (packet->is_input)
@@ -155,7 +144,7 @@ int handle_io(int vcpu_id, struct rvm_exit_io_packet *packet, uint64_t key, stru
             printf("OUT %x\n", packet->port);
     }
 
-    struct virt_device *dev = (struct virt_device *)key;
+    struct virt_device* dev = (struct virt_device*)key;
 
     if (packet->is_repeat) {
         struct rvm_vcpu_state state;
@@ -179,21 +168,21 @@ int handle_io(int vcpu_id, struct rvm_exit_io_packet *packet, uint64_t key, stru
         struct rvm_io_value value;
         value.access_size = packet->access_size;
         if (packet->is_input) {
-            for (int i = 0; i < count; i ++) {
+            for (int i = 0; i < count; i++) {
                 int ret = dev->ops->read(dev, packet->port, &value);
                 if (ret != 0) return ret;
-                for (int k = 0; k < packet->access_size; k ++) {
+                for (int k = 0; k < packet->access_size; k++) {
                     *ram_ptr = value.buf[k];
-                    ram_ptr ++;
+                    ram_ptr++;
                 }
             }
             state.rdi += count;
         } else {
-            for (int i = 0; i < count; i ++) {
+            for (int i = 0; i < count; i++) {
                 value.u32 = 0;
-                for (int k = 0; k < packet->access_size; k ++) {
+                for (int k = 0; k < packet->access_size; k++) {
                     value.buf[k] = *ram_ptr;
-                    ram_ptr ++;
+                    ram_ptr++;
                 }
                 int ret = dev->ops->write(dev, packet->port, &value);
                 if (ret != 0) return ret;
@@ -213,7 +202,7 @@ int handle_io(int vcpu_id, struct rvm_exit_io_packet *packet, uint64_t key, stru
             struct rvm_vcpu_state_args args;
             args.vcpu_id = vcpu_id;
             args.kind = RVM_VCPU_IO;
-            args.vcpu_io_ptr = (struct rvm_vcpu_io *)&value;
+            args.vcpu_io_ptr = (struct rvm_vcpu_io*)&value;
             args.buf_size = sizeof(value);
             return ioctl(dev->rvm_fd, RVM_VCPU_WRITE_STATE, &args);
         } else {
@@ -223,12 +212,12 @@ int handle_io(int vcpu_id, struct rvm_exit_io_packet *packet, uint64_t key, stru
     }
 }
 
-int handle_mmio(int vcpu_id, struct rvm_exit_mmio_packet *packet, uint64_t key) {
+int handle_mmio(int vcpu_id, struct rvm_exit_mmio_packet* packet, uint64_t key) {
     printf("Guest MMIO: addr(0x%lx) [Not supported!]\n", packet->addr);
     return 1;
 }
 
-int handle_exit(int vcpu_id, struct rvm_exit_packet *packet, struct vm_mem_set* mem_set) {
+int handle_exit(int vcpu_id, struct rvm_exit_packet* packet, struct vm_mem_set* mem_set) {
     // printf("Handle guest exit: kind(%d) key(0x%lx)\n", packet->kind, packet->key);
     switch (packet->kind) {
     case RVM_EXIT_PKT_KIND_GUEST_IO:
@@ -240,7 +229,7 @@ int handle_exit(int vcpu_id, struct rvm_exit_packet *packet, struct vm_mem_set* 
     }
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
     fcntl(0, F_SETFL, fcntl(0, F_GETFL) | O_NONBLOCK);
 
     int fd = open("/dev/rvm", O_RDWR);
@@ -255,18 +244,17 @@ int main(int argc, char *argv[]) {
     // if (entry < 0)
     //     return 0;
 
-    const char *bios_img = "fake_bios.bin";
-    const char *ucore_img = "ucore.img";
-    const char *sfs_img = "sfs.img";
+    const char* bios_img = "fake_bios.bin";
+    const char* ucore_img = "ucore.img";
+    const char* sfs_img = "sfs.img";
     struct vm_mem_set mem_set;
     int entry = init_memory_fake_bios(fd, vmid, bios_img, &mem_set);
-    if (entry < 0)
-        return 0;
+    if (entry < 0) return 0;
 
     init_device(fd, vmid);
-    ide_add_file_img(&IDE, ucore_img); // os image
-    ide_add_empty_img(&IDE, 1024*1024*128); // swap image
-    ide_add_file_img(&IDE, sfs_img); // sfs image
+    ide_add_file_img(&IDE, ucore_img);          // os image
+    ide_add_empty_img(&IDE, 1024 * 1024 * 128); // swap image
+    ide_add_file_img(&IDE, sfs_img);            // sfs image
 
     struct rvm_vcpu_create_args vcpu_args = {vmid, entry};
     int vcpu_id = ioctl(fd, RVM_VCPU_CREATE, &vcpu_args);
@@ -276,8 +264,7 @@ int main(int argc, char *argv[]) {
     for (;;) {
         struct rvm_vcpu_resmue_args args = {vcpu_id};
         int ret = ioctl(fd, RVM_VCPU_RESUME, &args);
-        if (ret < 0 || handle_exit(vcpu_id, &args.packet, &mem_set))
-            break;
+        if (ret < 0 || handle_exit(vcpu_id, &args.packet, &mem_set)) break;
     }
 
     close(fd);
