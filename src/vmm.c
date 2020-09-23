@@ -39,6 +39,7 @@ void test_hypercall() {
     }
 }
 
+// Warning: currently RVM does not support SeaBIOS.
 int init_memory_seabios(int rvm_fd, int vmid, const char* bios_file) {
     int fd = open(bios_file, O_RDONLY);
     if (fd < 0) {
@@ -64,6 +65,7 @@ int init_memory_seabios(int rvm_fd, int vmid, const char* bios_file) {
     char* bios_ptr = (char*)(intptr_t)ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
     printf("bios_ptr = %p\n", bios_ptr);
 
+    // Write BIOS image to guest physical memory
     read(fd, bios_ptr, bios_size);
     close(fd);
 
@@ -75,10 +77,10 @@ int init_memory_seabios(int rvm_fd, int vmid, const char* bios_file) {
     return 0;
 }
 
-int init_memory_fake_bios(int rvm_fd, int vmid, const char* fake_bios_file, struct vm_mem_set* mem_set) {
-    int fd = open(fake_bios_file, O_RDONLY);
+int init_memory_ucore_bios(int rvm_fd, int vmid, const char* ucore_bios_file, struct vm_mem_set* mem_set) {
+    int fd = open(ucore_bios_file, O_RDONLY);
     if (fd < 0) {
-        printf("fail to open BIOS image '%s': %d\n", fake_bios_file, fd);
+        printf("fail to open BIOS image '%s': %d\n", ucore_bios_file, fd);
         return fd;
     }
 
@@ -100,18 +102,20 @@ int init_memory_fake_bios(int rvm_fd, int vmid, const char* fake_bios_file, stru
     mem_set_push(mem_set, 0, GUEST_RAM_SZ, (uint8_t*)ram_ptr);
 
     struct stat statbuf;
-    stat(fake_bios_file, &statbuf);
+    stat(ucore_bios_file, &statbuf);
     int bios_size = statbuf.st_size;
 
-    const int FAKE_BIOS_ENTRY = 0x9000; // 36KiB
-    printf("FAKE_BIOS_ENTRY = 0x%x\n", FAKE_BIOS_ENTRY);
+    const int UCORE_BIOS_ENTRY = 0x9000; // 36KiB
+    printf("UCORE_BIOS_ENTRY = 0x%x\n", UCORE_BIOS_ENTRY);
 
-    read(fd, ram_ptr + FAKE_BIOS_ENTRY, bios_size);
+    // Write BIOS image to guest physical memory
+    read(fd, ram_ptr + UCORE_BIOS_ENTRY, bios_size);
     close(fd);
 
-    return FAKE_BIOS_ENTRY;
+    return UCORE_BIOS_ENTRY;
 }
 
+// Warning: currently RVM does not support to boot the raw ucore image without BIOS.
 int init_memory_ucore(int rvm_fd, int vmid, const char* ucore_img) {
     int fd = open(ucore_img, O_RDONLY);
     if (fd < 0) {
@@ -127,6 +131,7 @@ int init_memory_ucore(int rvm_fd, int vmid, const char* ucore_img) {
         return (intptr_t)ram_ptr;
     }
 
+    // Write uCore image to guest physical memory
     const int SECT_SIZE = 512;
     const int ENTRY = 0x7c00;
     read(fd, ram_ptr + ENTRY, SECT_SIZE);
@@ -273,11 +278,11 @@ int main(int argc, char* argv[]) {
     // if (entry < 0)
     //     return 0;
 
-    const char* bios_img = "fake_bios.bin";
+    const char* bios_img = "ucore_bios.bin";
     const char* ucore_img = "ucore.img";
     const char* sfs_img = "sfs.img";
     struct vm_mem_set mem_set;
-    int entry = init_memory_fake_bios(fd, vmid, bios_img, &mem_set);
+    int entry = init_memory_ucore_bios(fd, vmid, bios_img, &mem_set);
     if (entry < 0) {
         printf("failed to init memory of Fake BIOS: %d\n", entry);
         return 1;

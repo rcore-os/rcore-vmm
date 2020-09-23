@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 
-project(fake_bios)
+project(ucore_bios)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "")
 enable_language(ASM)
 

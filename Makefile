@@ -20,11 +20,11 @@ all: build
 build: bios vmm ucore
 
 bios:
-	@echo Building Fake BIOS
-	@mkdir -p fake_bios/build
-	@cd fake_bios/build && cmake $(cmake_build_args) .. && make -j
+	@echo Building uCore BIOS
+	@mkdir -p ucore_bios/build
+	@cd ucore_bios/build && cmake $(cmake_build_args) .. && make -j
 	@mkdir -p $(out_dir)
-	@cp fake_bios/build/fake_bios.bin $(out_dir)
+	@cp ucore_bios/build/ucore_bios.bin $(out_dir)
 
 vmm:
 	@echo Building rCore VMM app
@@ -44,7 +44,7 @@ ifeq ($(UCORE_LAB), 8)
 endif
 
 clean:
-	@rm -rf src/build fake_bios/build
+	@rm -rf src/build ucore_bios/build
 	@if [ -d $(ucore_dir) ]; then cd $(ucore_dir) && make clean; fi
 	@rm -rf build
 
