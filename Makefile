@@ -33,18 +33,19 @@ vmm:
 	@mkdir -p $(out_dir)
 	@cp src/build/vmm $(out_dir)
 
-ucore:
+ucore: | ucore/*
 	@echo Building uCore OS
-	@cd $(ucore_dir) && make bin/ucore.img
+	# Makefile in labcodes_answer directory is out of date ...
+	@cp ucore/labcodes/lab$(UCORE_LAB)/Makefile $(ucore_dir)
+	@cd $(ucore_dir) && make
 	@cp $(ucore_dir)/bin/ucore.img $(out_dir)
 ifeq ($(UCORE_LAB), 8)
-	@cd $(ucore_dir) && make bin/sfs.img
 	@cp $(ucore_dir)/bin/sfs.img $(out_dir)
 endif
 
 clean:
 	@rm -rf src/build fake_bios/build
-	@cd $(ucore_dir) && make clean
+	@if [ -d $(ucore_dir) ]; then cd $(ucore_dir) && make clean; fi
 	@rm -rf build
 
 .PHONY: build clean bios vmm ucore
