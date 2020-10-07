@@ -4,15 +4,15 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define RVM_IO 0xAE00
-#define RVM_GUEST_CREATE (RVM_IO + 0x01)
+#define RVM_IO                      0xAE00
+#define RVM_GUEST_CREATE            (RVM_IO + 0x01)
 #define RVM_GUEST_ADD_MEMORY_REGION (RVM_IO + 0x02)
-#define RVM_GUEST_SET_TRAP (RVM_IO + 0x03)
-#define RVM_VCPU_CREATE (RVM_IO + 0x11)
-#define RVM_VCPU_RESUME (RVM_IO + 0x12)
-#define RVM_VCPU_READ_STATE (RVM_IO + 0x13)
-#define RVM_VCPU_WRITE_STATE (RVM_IO + 0x14)
-#define RVM_VCPU_INTERRUPT (RVM_IO + 0x15)
+#define RVM_GUEST_SET_TRAP          (RVM_IO + 0x03)
+#define RVM_VCPU_CREATE             (RVM_IO + 0x11)
+#define RVM_VCPU_RESUME             (RVM_IO + 0x12)
+#define RVM_VCPU_READ_STATE         (RVM_IO + 0x13)
+#define RVM_VCPU_WRITE_STATE        (RVM_IO + 0x14)
+#define RVM_VCPU_INTERRUPT          (RVM_IO + 0x15)
 
 enum rvm_trap_kind {
     RVM_TRAP_KIND_BELL = 0,

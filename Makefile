@@ -1,14 +1,14 @@
 ARCH ?= x86_64
 MODE ?= release
 UCORE_LAB ?= 8
+PREFIX ?= $(ARCH)-linux-musl-
 
-prefix := $(ARCH)-linux-musl-
 out_dir := build/$(ARCH)
 ucore_dir := ucore/labcodes_answer/lab$(UCORE_LAB)_result
 
-export GCCPREFIX = $(prefix)
+export GCCPREFIX = $(PREFIX)
 
-cmake_build_args := -DARCH=$(ARCH)
+cmake_build_args := -DARCH=$(ARCH) -DGCCPREFIX=$(PREFIX)
 ifeq ($(MODE), release)
 cmake_build_args += -DCMAKE_BUILD_TYPE=Release
 else ifeq ($(MODE), debug)

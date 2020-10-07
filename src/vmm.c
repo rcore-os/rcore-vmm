@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,7 +44,7 @@ void test_hypercall() {
 int init_memory_seabios(int rvm_fd, int vmid, const char* bios_file) {
     int fd = open(bios_file, O_RDONLY);
     if (fd < 0) {
-        printf("fail to open BIOS image '%s': %d\n", bios_file, fd);
+        printf("failed to open BIOS image '%s': %s\n", bios_file, strerror(errno));
         return fd;
     }
 
@@ -51,7 +52,7 @@ int init_memory_seabios(int rvm_fd, int vmid, const char* bios_file) {
     struct rvm_guest_add_memory_region_args region = {vmid, 0, GUEST_RAM_SZ};
     char* ram_ptr = (char*)(intptr_t)ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
     if (ram_ptr < (char*)0) {
-        printf("fail to add guest memory region: %d\n", (int)(intptr_t)ram_ptr);
+        printf("failed to add guest memory region: %s\n", strerror(errno));
         return (intptr_t)ram_ptr;
     }
 
@@ -66,7 +67,8 @@ int init_memory_seabios(int rvm_fd, int vmid, const char* bios_file) {
     printf("bios_ptr = %p\n", bios_ptr);
 
     // Write BIOS image to guest physical memory
-    read(fd, bios_ptr, bios_size);
+    int ret = read(fd, bios_ptr, bios_size);
+    if (ret < 0) return ret;
     close(fd);
 
     // map the last 128KB of the BIOS in ISA space */
@@ -80,15 +82,15 @@ int init_memory_seabios(int rvm_fd, int vmid, const char* bios_file) {
 int init_memory_ucore_bios(int rvm_fd, int vmid, const char* ucore_bios_file, struct vm_mem_set* mem_set) {
     int fd = open(ucore_bios_file, O_RDONLY);
     if (fd < 0) {
-        printf("fail to open BIOS image '%s': %d\n", ucore_bios_file, fd);
+        printf("failed to open BIOS image '%s': %s\n", ucore_bios_file, strerror(errno));
         return fd;
     }
 
     // RAM
     struct rvm_guest_add_memory_region_args region = {vmid, 0, GUEST_RAM_SZ};
     char* ram_ptr = (char*)(intptr_t)ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
-    if (ram_ptr < (char*)0) {
-        printf("fail to add guest memory region: %d\n", (int)(intptr_t)ram_ptr);
+    if (ram_ptr == (char*)-1) {
+        printf("failed to add guest memory region: %s\n", strerror(errno));
         return (intptr_t)ram_ptr;
     }
 
@@ -102,14 +104,16 @@ int init_memory_ucore_bios(int rvm_fd, int vmid, const char* ucore_bios_file, st
     mem_set_push(mem_set, 0, GUEST_RAM_SZ, (uint8_t*)ram_ptr);
 
     struct stat statbuf;
-    stat(ucore_bios_file, &statbuf);
+    int ret = stat(ucore_bios_file, &statbuf);
+    if (ret < 0) return ret;
     int bios_size = statbuf.st_size;
 
     const int UCORE_BIOS_ENTRY = 0x9000; // 36KiB
     printf("UCORE_BIOS_ENTRY = 0x%x\n", UCORE_BIOS_ENTRY);
 
     // Write BIOS image to guest physical memory
-    read(fd, ram_ptr + UCORE_BIOS_ENTRY, bios_size);
+    ret = read(fd, ram_ptr + UCORE_BIOS_ENTRY, bios_size);
+    if (ret < 0) return ret;
     close(fd);
 
     return UCORE_BIOS_ENTRY;
@@ -119,7 +123,7 @@ int init_memory_ucore_bios(int rvm_fd, int vmid, const char* ucore_bios_file, st
 int init_memory_ucore(int rvm_fd, int vmid, const char* ucore_img) {
     int fd = open(ucore_img, O_RDONLY);
     if (fd < 0) {
-        printf("fail to open uCore image '%s': %d\n", ucore_img, fd);
+        printf("failed to open uCore image '%s': %s\n", ucore_img, strerror(errno));
         return fd;
     }
 
@@ -127,14 +131,15 @@ int init_memory_ucore(int rvm_fd, int vmid, const char* ucore_img) {
     struct rvm_guest_add_memory_region_args region = {vmid, 0, GUEST_RAM_SZ};
     char* ram_ptr = (char*)(intptr_t)ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
     if (ram_ptr < (char*)0) {
-        printf("fail to add guest memory region: %d\n", (int)(intptr_t)ram_ptr);
+        printf("failed to add guest memory region: %s\n", strerror(errno));
         return (intptr_t)ram_ptr;
     }
 
     // Write uCore image to guest physical memory
     const int SECT_SIZE = 512;
     const int ENTRY = 0x7c00;
-    read(fd, ram_ptr + ENTRY, SECT_SIZE);
+    int ret = read(fd, ram_ptr + ENTRY, SECT_SIZE);
+    if (ret < 0) return ret;
     close(fd);
 
     return ENTRY;
@@ -261,14 +266,14 @@ int main(int argc, char* argv[]) {
     int fd = open("/dev/rvm", O_RDWR);
     printf("rvm fd = %d\n", fd);
     if (fd < 0) {
-        printf("failed to open /dev/rvm: %d\n", fd);
+        printf("failed to open /dev/rvm: %s\n", strerror(errno));
         return 1;
     }
 
     int vmid = ioctl(fd, RVM_GUEST_CREATE);
     printf("vmid = %d\n", vmid);
     if (vmid < 0) {
-        printf("failed to create guest: %d\n", vmid);
+        printf("failed to create guest: %s\n", strerror(errno));
         return 1;
     }
 
@@ -284,7 +289,7 @@ int main(int argc, char* argv[]) {
     struct vm_mem_set mem_set;
     int entry = init_memory_ucore_bios(fd, vmid, bios_img, &mem_set);
     if (entry < 0) {
-        printf("failed to init memory of Fake BIOS: %d\n", entry);
+        printf("failed to init memory of Fake BIOS: %s\n", strerror(errno));
         return 1;
     }
 
@@ -297,7 +302,7 @@ int main(int argc, char* argv[]) {
     int vcpu_id = ioctl(fd, RVM_VCPU_CREATE, &vcpu_args);
     printf("vcpu_id = %d\n", vcpu_id);
     if (vcpu_id < 0) {
-        printf("failed to create vcpu: %d\n", vcpu_id);
+        printf("failed to create vcpu: %s\n", strerror(errno));
         return 1;
     }
 
@@ -305,12 +310,12 @@ int main(int argc, char* argv[]) {
         struct rvm_vcpu_resmue_args args = {vcpu_id};
         int ret = ioctl(fd, RVM_VCPU_RESUME, &args);
         if (ret < 0) {
-            printf("failed to resume vcpu: %d\n", ret);
+            printf("failed to resume vcpu: %s\n", strerror(errno));
             break;
         }
         ret = handle_exit(vcpu_id, &args.packet, &mem_set);
         if (ret < 0) {
-            printf("failed to handle VM exit: kind = %d", args.packet.kind);
+            printf("failed to handle VM exit (kind = %d): %s\n", args.packet.kind, strerror(errno));
             break;
         }
     }
