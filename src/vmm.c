@@ -50,24 +50,26 @@ int init_memory_seabios(int rvm_fd, int vmid, const char* bios_file) {
 
     // RAM
     struct rvm_guest_add_memory_region_args region = {vmid, 0, GUEST_RAM_SZ};
-    char* ram_ptr = (char*)(intptr_t)ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
-    if (ram_ptr < (char*)0) {
+    int ret = ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
+    if (ret < 0) {
         printf("failed to add guest memory region: %s\n", strerror(errno));
-        return (intptr_t)ram_ptr;
+        return ret;
     }
+    void* ram_ptr = region.userspace_addr;
 
     struct stat statbuf;
     stat(bios_file, &statbuf);
     int bios_size = statbuf.st_size;
 
     // map BIOS at the top of memory
-    region.guest_start_paddr = (uint32_t)-bios_size;
+    region.guest_phys_addr = (uint32_t)-bios_size;
     region.memory_size = bios_size;
-    char* bios_ptr = (char*)(intptr_t)ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
+    ret = ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
+    void* bios_ptr = region.userspace_addr;
     printf("bios_ptr = %p\n", bios_ptr);
 
     // Write BIOS image to guest physical memory
-    int ret = read(fd, bios_ptr, bios_size);
+    ret = read(fd, bios_ptr, bios_size);
     if (ret < 0) return ret;
     close(fd);
 
@@ -88,11 +90,12 @@ int init_memory_ucore_bios(int rvm_fd, int vmid, const char* ucore_bios_file, st
 
     // RAM
     struct rvm_guest_add_memory_region_args region = {vmid, 0, GUEST_RAM_SZ};
-    char* ram_ptr = (char*)(intptr_t)ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
-    if (ram_ptr == (char*)-1) {
+    int ret = ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
+    if (ret < 0) {
         printf("failed to add guest memory region: %s\n", strerror(errno));
-        return (intptr_t)ram_ptr;
+        return ret;
     }
+    void* ram_ptr = region.userspace_addr;
 
     // Setup the guest page table.
     uint64_t* pt0 = (uint64_t*)ram_ptr;
@@ -104,7 +107,7 @@ int init_memory_ucore_bios(int rvm_fd, int vmid, const char* ucore_bios_file, st
     mem_set_push(mem_set, 0, GUEST_RAM_SZ, (uint8_t*)ram_ptr);
 
     struct stat statbuf;
-    int ret = stat(ucore_bios_file, &statbuf);
+    ret = stat(ucore_bios_file, &statbuf);
     if (ret < 0) return ret;
     int bios_size = statbuf.st_size;
 
@@ -129,16 +132,17 @@ int init_memory_ucore(int rvm_fd, int vmid, const char* ucore_img) {
 
     // RAM
     struct rvm_guest_add_memory_region_args region = {vmid, 0, GUEST_RAM_SZ};
-    char* ram_ptr = (char*)(intptr_t)ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
-    if (ram_ptr < (char*)0) {
+    int ret = ioctl(rvm_fd, RVM_GUEST_ADD_MEMORY_REGION, &region);
+    if (ret < 0) {
         printf("failed to add guest memory region: %s\n", strerror(errno));
-        return (intptr_t)ram_ptr;
+        return ret;
     }
+    void* ram_ptr = region.userspace_addr;
 
     // Write uCore image to guest physical memory
     const int SECT_SIZE = 512;
     const int ENTRY = 0x7c00;
-    int ret = read(fd, ram_ptr + ENTRY, SECT_SIZE);
+    ret = read(fd, ram_ptr + ENTRY, SECT_SIZE);
     if (ret < 0) return ret;
     close(fd);
 
@@ -307,7 +311,7 @@ int main(int argc, char* argv[]) {
     }
 
     for (;;) {
-        struct rvm_vcpu_resmue_args args = {vcpu_id};
+        struct rvm_vcpu_resume_args args = {vcpu_id};
         int ret = ioctl(fd, RVM_VCPU_RESUME, &args);
         if (ret < 0) {
             printf("failed to resume vcpu: %s\n", strerror(errno));
