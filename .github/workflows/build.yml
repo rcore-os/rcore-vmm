@@ -15,11 +15,13 @@ jobs:
         submodules: 'recursive'
 
     - name: Install musl toolchain
+      env:
+        ACTIONS_ALLOW_UNSECURE_COMMANDS: true
       run: |
         export ARCH=${{ matrix.arch }}
         export OS_NAME=${{ runner.os }}
         [ $ARCH = x86_64  ] && export FILE="x86_64-linux-musl-cross";
-        [ $OS_NAME = Linux ] && export URL="https://musl.cc/$FILE.tgz";
+        [ $OS_NAME = Linux ] && export URL="https://more.musl.cc/9/x86_64-linux-musl/$FILE.tgz";
         [ $OS_NAME = macOS ] && export URL="https://mac.musl.cc/$FILE.tgz";
         wget $URL;
         tar -xf $FILE.tgz;
