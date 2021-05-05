@@ -53,7 +53,7 @@ long long int load_image(int rvm_fd, short unsigned int vmid, const char* image_
         return -1;
     }
     struct rvm_guest_add_memory_region_args region = {
-        .guest_start_paddr= 0x80200000,
+        .guest_phys_addr= 0x80200000,
         .memory_size = memory_size,
         .vmid = vmid,
     };

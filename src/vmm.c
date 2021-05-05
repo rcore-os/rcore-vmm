@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,14 +19,14 @@ int main(int argc, char* argv[]) {
     int fd = open("/dev/rvm", O_RDWR);
     printf("rvm fd = %d\n", fd);
     if (fd < 0) {
-        printf("failed to open /dev/rvm: %d\n", fd);
+        printf("failed to open /dev/rvm: %s\n", strerror(errno));
         return 1;
     }
 
     int vmid = ioctl(fd, RVM_GUEST_CREATE);
     printf("vmid = %d\n", vmid);
     if (vmid < 0) {
-        printf("failed to create guest: %d\n", vmid);
+        printf("failed to create guest: %s\n", strerror(errno));
         return 1;
     }
 
@@ -41,17 +42,17 @@ int main(int argc, char* argv[]) {
     }
     for (;;) {
         
-        struct rvm_vcpu_resmue_args args;
+        struct rvm_vcpu_resume_args args;
         //printf("arg packet addr = %p\n", (void*)&args);
         args.vcpu_id = (unsigned short) vcpu_id;
         int ret = ioctl(fd, RVM_VCPU_RESUME, &args);
         if (ret < 0) {
-            printf("failed to resume vcpu: %d\n", ret);
+            printf("failed to resume vcpu: %s\n", strerror(errno));
             break;
         }
         ret = handle_exit(vcpu_id, &args.packet, mem_set);
         if (ret < 0) {
-            printf("failed to handle VM exit: kind = %d", args.packet.kind);
+            printf("failed to handle VM exit (kind = %d): %s\n", args.packet.kind, strerror(errno));
             break;
         }
     }

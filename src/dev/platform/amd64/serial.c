@@ -64,7 +64,7 @@ static int serial_read(struct virt_device* dev, uint16_t port, struct rvm_io_val
     case LINE_STATUS:
         check_stdin(data);
         if (data->kb_r_pos != data->kb_w_pos) {
-            value->u8 = kI8250LineStatusIdle | kI8250LineStatusData;
+            value->u8 = kI8250LineStatusData | kI8250LineStatusEmpty;
         } else {
             value->u8 = kI8250LineStatusIdle | kI8250LineStatusEmpty;
         }

@@ -4,7 +4,9 @@
 
 VMM (Virtual Machine Monitor) app for [rCore OS](https://github.com/rcore-os/rCore) runs on top of [RVM](https://github.com/rcore-os/RVM).
 
-Can run the unmodified [ucore_os_lab](https://github.com/chyyuu/os_kernel_lab/tree/master) as a guest OS in rCore.
+Can run the unmodified [ucore_os_lab](https://github.com/chyyuu/os_kernel_lab/tree/master) as a guest OS in rCore:
+
+[![Run uCore in rCore](demo/run-ucore-in-rcore.gif)](https://asciinema.org/a/381007?autoplay=1)
 
 ## Build
 

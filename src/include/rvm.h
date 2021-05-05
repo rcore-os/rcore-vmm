@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define PTE_P  0x001 // Present
 #define PTE_W  0x002 // Writeable
 #define PTE_U  0x004 // User
 #define PTE_HG 0x080 // Huge page
@@ -13,15 +12,15 @@
 #define PAGE_SIZE 4096
 
 
-#define RVM_IO 0xAE00
-#define RVM_GUEST_CREATE (RVM_IO + 0x01)
+#define RVM_IO                      0xAE00
+#define RVM_GUEST_CREATE            (RVM_IO + 0x01)
 #define RVM_GUEST_ADD_MEMORY_REGION (RVM_IO + 0x02)
-#define RVM_GUEST_SET_TRAP (RVM_IO + 0x03)
-#define RVM_VCPU_CREATE (RVM_IO + 0x11)
-#define RVM_VCPU_RESUME (RVM_IO + 0x12)
-#define RVM_VCPU_READ_STATE (RVM_IO + 0x13)
-#define RVM_VCPU_WRITE_STATE (RVM_IO + 0x14)
-#define RVM_VCPU_INTERRUPT (RVM_IO + 0x15)
+#define RVM_GUEST_SET_TRAP          (RVM_IO + 0x03)
+#define RVM_VCPU_CREATE             (RVM_IO + 0x11)
+#define RVM_VCPU_RESUME             (RVM_IO + 0x12)
+#define RVM_VCPU_READ_STATE         (RVM_IO + 0x13)
+#define RVM_VCPU_WRITE_STATE        (RVM_IO + 0x14)
+#define RVM_VCPU_INTERRUPT          (RVM_IO + 0x15)
 
 #if defined(__amd64)
     #include "arch/amd64/rvmstruct.h"
@@ -37,8 +36,9 @@
 
 struct rvm_guest_add_memory_region_args {
     uint16_t vmid;
-    uint64_t guest_start_paddr;
+    uint64_t guest_phys_addr;
     uint64_t memory_size;
+    void* userspace_addr;
 };
 struct rvm_guest_set_trap_args {
     uint16_t vmid;
@@ -53,7 +53,7 @@ struct rvm_vcpu_create_args {
     uint64_t entry;
 };
 
-struct rvm_vcpu_resmue_args {
+struct rvm_vcpu_resume_args {
     uint16_t vcpu_id;
     struct rvm_exit_packet packet;
 };
