@@ -15,9 +15,16 @@ else ifeq ($(MODE), debug)
 cmake_build_args += -DCMAKE_BUILD_TYPE=Debug
 endif
 
-all: build
+all: build-amd64
 
-build: bios vmm ucore
+build-riscv64: vmm rvloader
+
+rvloader:
+	@echo Building RISC-V light loader.
+	@cd rvloader && make
+	@cp rvloader/rvloader.img $(out_dir)
+build-x86_64: build-amd64
+build-amd64: bios vmm ucore
 
 bios:
 	@echo Building uCore BIOS
@@ -48,4 +55,4 @@ clean:
 	@if [ -d $(ucore_dir) ]; then cd $(ucore_dir) && make clean; fi
 	@rm -rf build
 
-.PHONY: build clean bios vmm ucore
+.PHONY: build clean bios vmm ucore rvloader build-amd64 build-x86_64

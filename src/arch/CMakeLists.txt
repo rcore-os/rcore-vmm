@@ -1,0 +1,7 @@
+if (${ARCH} STREQUAL x86_64)
+    add_subdirectory(amd64)
+elseif (${ARCH} STREQUAL riscv64)
+    add_subdirectory(riscv64)
+else()
+    message("Unsupported arch: ${ARCH}")
+endif()

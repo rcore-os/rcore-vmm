@@ -7,20 +7,35 @@ set(PREFIX ${ARCH}-linux-musl-)
 
 if (${ARCH} STREQUAL x86_64)
     set(CMAKE_C_FLAGS       "-m64")
+elseif (${ARCH} STREQUAL riscv64)
 else()
-    message("Unsupported arch: ${ARCH}")
+    message( FATAL_ERROR "Unsupported arch: ${ARCH}")
 endif()
 set(CMAKE_ASM_COMPILER      ${PREFIX}gcc)
 set(CMAKE_C_COMPILER        ${PREFIX}gcc)
 set(CMAKE_RANLIB            ${PREFIX}ranlib)
-set(CMAKE_C_FLAGS           "${CMAKE_C_FLAGS} -ggdb -Wall")
+set(CMAKE_C_FLAGS           "${CMAKE_C_FLAGS} -ggdb -static")
 set(CMAKE_ASM_FLAGS         ${CMAKE_C_FLAGS})
 set(CMAKE_C_LINK_FLAGS      "${LINK_FLAGS}")
 set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
 
-aux_source_directory(. VMM_SRCS)
-aux_source_directory(dev VMM_DEV_SRCS)
-add_executable(vmm ${VMM_SRCS} ${VMM_DEV_SRCS})
-
+if (${ARCH} STREQUAL x86_64)
+    include_directories(${PROJECT_SOURCE_DIR}/include/arch/amd64)
+elseif (${ARCH} STREQUAL riscv64)
+    include_directories(${PROJECT_SOURCE_DIR}/include/arch/riscv64)
+else()
+    message( FATAL_ERROR "Unsupported arch: ${ARCH}")
+endif()
 include_directories(.)
-include_directories(include)
+include_directories(${PROJECT_SOURCE_DIR}/include)
+
+aux_source_directory(. VMM_SRCS)
+add_subdirectory(arch)
+add_subdirectory(dev)
+
+# message( "FILES: ${VMM_SRCS} ${VMM_DEV_SRCS} ${VMM_ARCH_SRCS}" )
+add_executable(vmm ${VMM_SRCS} ${VMM_DEV_SRCS} ${VMM_ARCH_SRCS})
+
+
+target_link_libraries(vmm platform arch)
+

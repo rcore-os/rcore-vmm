@@ -4,7 +4,7 @@ project(ucore_bios)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "")
 enable_language(ASM)
 
-set(PREFIX ${ARCH}-linux-musl-)
+set(PREFIX ${ARCH}-unknown-linux-musl-)
 if (${ARCH} STREQUAL x86_64)
     set(CMAKE_C_FLAGS       "-m16")
 else()
